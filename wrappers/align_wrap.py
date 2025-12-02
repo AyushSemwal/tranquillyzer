@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 def align_wrap(input_dir, ref, output_dir, preset,
                filt_flag, mapq, threads, add_minimap_args):
 
@@ -5,13 +9,6 @@ def align_wrap(input_dir, ref, output_dir, preset,
     import time
     import subprocess
     import resource
-    import logging
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-    logger = logging.getLogger(__name__)
 
     start = time.time()
 

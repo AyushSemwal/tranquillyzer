@@ -1,10 +1,13 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 def simulate_data_wrap(model_name, output_dir, training_seq_orders_file,
                        num_reads, mismatch_rate, insertion_rate, deletion_rate,
                        min_cDNA, max_cDNA, polyT_error_rate, max_insertions,
                        threads, rc, transcriptome, invalid_fraction):
     import os
     import random
-    import logging
     import pickle
     import numpy as np
     from Bio import SeqIO
@@ -12,12 +15,6 @@ def simulate_data_wrap(model_name, output_dir, training_seq_orders_file,
     from Bio.SeqRecord import SeqRecord
     from scripts.simulate_training_data import generate_training_reads
     from scripts.trained_models import seq_orders
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-    logger = logging.getLogger(__name__)
 
     reads = []
     labels = []

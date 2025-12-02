@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 def dedup_wrap(input_dir, lv_threshold,
                stranded, per_cell, threads):
     import os
@@ -5,14 +9,8 @@ def dedup_wrap(input_dir, lv_threshold,
     import resource
     import pysam
     import subprocess
-    import logging
-    from scripts.deduplicate import deduplication_parallel
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-    logger = logging.getLogger(__name__)
+    from scripts.deduplicate import deduplication_parallel
 
     start = time.time()
     logger.info("Starting duplicate marking process")

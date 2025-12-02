@@ -1,8 +1,11 @@
+import logging
+
 import numpy as np
 from textwrap import fill
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
+logger = logging.getLogger(__name__)
 
 def visualize_sequence_annotations(colors, read_name, read,
                                    predicted_labels, architecture,

@@ -14,10 +14,6 @@ from scripts.train_new_model import ont_read_annotator
 from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 # Create a NumPy lookup array (256 elements to handle all ASCII characters)

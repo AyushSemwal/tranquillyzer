@@ -1,9 +1,13 @@
+# Want logger available to all objects in module
+import logging
+
+logger = logging.getLogger(__name__)
+
 def load_libs():
     import os
     import gc
     import json
     import time
-    import logging
     import pickle
     import random
     import itertools
@@ -31,7 +35,7 @@ def load_libs():
     from scripts.extract_annotated_seqs import extract_annotated_full_length_seqs
     from scripts.visualize_annot import save_plots_to_pdf
 
-    return (os, gc, json, time, logging, pickle,
+    return (os, gc, json, time, pickle,
             random, itertools, Counter,
             np, pd, tf, SeqIO, Seq, SeqRecord,
             LabelBinarizer, shuffle,
@@ -50,7 +54,7 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
                      threads, rc, transcriptome, invalid_fraction, gpu_mem,
                      target_tokens, vram_headroom, min_batch_size, max_batch_size):
 
-    (os, gc, json, time, logging,
+    (os, gc, json, time,
     pickle, random, itertools, Counter,
     np, pd, tf, SeqIO, Seq, SeqRecord,
     LabelBinarizer, shuffle,
@@ -61,12 +65,6 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
     preprocess_sequences,
     extract_annotated_full_length_seqs,
     save_plots_to_pdf) = load_libs()
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-    logger = logging.getLogger(__name__)
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(base_dir, "..")

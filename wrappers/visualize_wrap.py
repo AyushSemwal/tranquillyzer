@@ -1,11 +1,14 @@
+import logging
+
 import polars as pl
+
+logger = logging.getLogger(__name__)
 
 def load_libs():
     import os
     import sys
     import time
     import resource
-    import logging
     import random
     import warnings
     import pickle
@@ -24,7 +27,7 @@ def load_libs():
     from scripts.annotate_new_data import annotate_new_data_parallel
     from scripts.visualize_annot import save_plots_to_pdf
 
-    return (os, sys, time, resource, logging, random, pickle,
+    return (os, sys, time, resource, random, pickle,
             LabelBinarizer, tf, extract_annotated_full_length_seqs,
             build_model, preprocess_sequences, trained_models,
             seq_orders, annotate_new_data_parallel, save_plots_to_pdf)
@@ -34,16 +37,10 @@ def visualize_wrap(output_dir, output_file, model_name, model_type,
                    seq_order_file, gpu_mem, target_tokens, vram_headroom,
                    min_batch_size, max_batch_size, num_reads, read_names, threads):
 
-    (os, sys, time, resource, logging, random, pickle,
+    (os, sys, time, resource, random, pickle,
      LabelBinarizer, tf, extract_annotated_full_length_seqs,
      build_model, preprocess_sequences, trained_models,
      seq_orders, annotate_new_data_parallel, save_plots_to_pdf) = load_libs()
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-    logger = logging.getLogger(__name__)
 
     # Exit early if bad inputs given
     if not num_reads and not read_names:

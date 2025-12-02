@@ -10,8 +10,6 @@ from concurrent.futures import ProcessPoolExecutor
 
 from filelock import FileLock  # Import the FileLock library
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 

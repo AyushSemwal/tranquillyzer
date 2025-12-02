@@ -15,8 +15,6 @@ from matplotlib.backends.backend_pdf import PdfPages
 from scripts.correct_barcodes import bc_n_demultiplex
 from scripts.extract_annotated_seqs import extract_annotated_full_length_seqs
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -58,7 +56,7 @@ def process_full_length_reads_in_chunks_and_save(reads, original_read_names,
 
     reads_in_chunk = len(reads)
 
-    logging.info(f"Post-processing {bin_name} chunk - {chunk_idx}: number of reads = {reads_in_chunk}")
+    logger.info(f"Post-processing {bin_name} chunk - {chunk_idx}: number of reads = {reads_in_chunk}")
 
     # n_jobs = min(n_jobs, reads_in_chunk)
     n_jobs_extract = min(16, reads_in_chunk)
@@ -67,7 +65,7 @@ def process_full_length_reads_in_chunks_and_save(reads, original_read_names,
                                                                               actual_lengths, label_binarizer, seq_order,
                                                                               barcodes, n_jobs_extract)
 
-    # logging.info("Preparing predictions for barcode correction and demultiplexing")
+    # logger.info("Preparing predictions for barcode correction and demultiplexing")
     chunk_df = pd.DataFrame.from_records(
     (
         {
@@ -129,7 +127,7 @@ def process_full_length_reads_in_chunks_and_save(reads, original_read_names,
 
     else:
         # Save invalid reads to a separate file
-        # logging.info(f"Saving {len(invalid_reads_df)} invalid reads to {invalid_output_file}")
+        # logger.info(f"Saving {len(invalid_reads_df)} invalid reads to {invalid_output_file}")
         if not invalid_reads_df.empty:
             with invalid_file_lock:
                 add_header = not os.path.exists(invalid_output_file) or os.path.getsize(invalid_output_file) == 0
@@ -137,7 +135,7 @@ def process_full_length_reads_in_chunks_and_save(reads, original_read_names,
             # print(f"Saved {len(invalid_reads_df)} invalid reads to {invalid_output_file}")
         # del invalid_reads_df
 
-    # logging.info("Prepared predictions for barcode correction and demultiplexing")
+    # logger.info("Prepared predictions for barcode correction and demultiplexing")
 
     # Process valid reads for barcodes
     column_mapping = {}
@@ -147,16 +145,16 @@ def process_full_length_reads_in_chunks_and_save(reads, original_read_names,
 
     # Process barcodes in parallel
     if not valid_reads_df.empty:
-        # logging.info("Correcting barcode and demuliplexing valid reads")
+        # logger.info("Correcting barcode and demuliplexing valid reads")
         corrected_df, match_type_counts, cell_id_counts = bc_n_demultiplex(valid_reads_df, strand,
                                                                            list(column_mapping.keys()),
                                                                            whitelist_dict, whitelist_df, threshold,
                                                                            output_dir, output_fmt, demuxed_fasta,
                                                                            demuxed_fasta_lock, ambiguous_fasta,
                                                                            ambiguous_fasta_lock, n_jobs)
-        # logging.info("Corrected barcodes and demuliplexed valid reads")
+        # logger.info("Corrected barcodes and demuliplexed valid reads")
 
-        # logging.info("Computing barcode stats")
+        # logger.info("Computing barcode stats")
         for barcode in list(column_mapping.keys()):
             count_column = f'corrected_{barcode}_counts_with_min_dist'
             min_dist_column = f'corrected_{barcode}_min_dist'
@@ -174,15 +172,15 @@ def process_full_length_reads_in_chunks_and_save(reads, original_read_names,
                 cumulative_barcodes_stats[barcode]['min_dist_data'][key] = (
                     cumulative_barcodes_stats[barcode]['min_dist_data'].get(key, 0) + value
                 )
-        # logging.info("Computed barcode stats")
+        # logger.info("Computed barcode stats")
 
-        # logging.info(f"Processing and saving {len(corrected_df)} valid reads to {valid_output_file}")
+        # logger.info(f"Processing and saving {len(corrected_df)} valid reads to {valid_output_file}")
         with valid_file_lock:  # FileLock ensures only one process writes at a time
             add_header = not os.path.exists(valid_output_file) or os.path.getsize(valid_output_file) == 0
             corrected_df.to_csv(valid_output_file, sep='\t', index=False, mode='a', header=add_header)
-        # logging.info(f"Processed and saved {len(corrected_df)} valid reads to {valid_output_file}")
+        # logger.info(f"Processed and saved {len(corrected_df)} valid reads to {valid_output_file}")
 
-        logging.info(f"Post-processed {bin_name} chunk - {chunk_idx}: number of reads = {reads_in_chunk}")
+        logger.info(f"Post-processed {bin_name} chunk - {chunk_idx}: number of reads = {reads_in_chunk}")
 
         return match_type_counts, cell_id_counts, cumulative_barcodes_stats
 

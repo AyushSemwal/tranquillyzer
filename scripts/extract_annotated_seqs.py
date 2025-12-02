@@ -1,7 +1,10 @@
 import gc
+import logging
 import multiprocessing as mp
 import numpy as np
 import tensorflow as tf
+
+logger = logging.getLogger(__name__)
 
 # ======================= collapse labels into order ======================= #
 

@@ -1,8 +1,11 @@
 import re
 import random
+import logging
 import numpy as np
 from Bio import SeqIO
 from multiprocessing import Pool
+
+logger = logging.getLogger(__name__)
 
 ############## introduce errors ##############
 
