@@ -26,6 +26,7 @@ def load_libs():
         plot_read_n_cDNA_lengths,
     )
     from scripts.annotate_new_data import (
+        get_gpu_handles,
         calculate_total_rows,
         model_predictions,
         estimate_average_read_length_from_bin,
@@ -39,7 +40,7 @@ def load_libs():
             defaultdict, psutil, pl, FileLock, pd,
             model_predictions, post_process_reads,
             seq_orders, estimate_average_read_length_from_bin,
-            calculate_total_rows, generate_barcodes_stats_pdf,
+            get_gpu_handles, calculate_total_rows, generate_barcodes_stats_pdf,
             generate_demux_stats_pdf, plot_read_n_cDNA_lengths,
             convert_tsv_to_parquet)
 
@@ -113,11 +114,19 @@ def annotate_reads_wrap(output_dir, whitelist_file, output_fmt,
      defaultdict, psutil, pl, FileLock, pd,
      model_predictions, post_process_reads,
      seq_orders, estimate_average_read_length_from_bin,
-     calculate_total_rows, generate_barcodes_stats_pdf,
+     get_gpu_handles, calculate_total_rows, generate_barcodes_stats_pdf,
      generate_demux_stats_pdf, plot_read_n_cDNA_lengths,
      convert_tsv_to_parquet) = load_libs()
 
     start = time.time()
+
+    # Let user know whether they're running on CPU only or GPU (provided handles if so)
+    # TODO: This may be able to be moved into the available GPUs/handles class
+    handles = get_gpu_handles()
+    if len(handles) == 0:
+        logger.info("No GPUs detected - running in CPU-only mode")
+    else:
+        logger.info(f"GPUs detected - running on {len(handles)} GPUs (names: {', '.join(handles)})")
 
     # Read / create / prepare input files and directories
     base_dir = os.path.dirname(os.path.abspath(__file__))

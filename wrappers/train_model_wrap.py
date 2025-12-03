@@ -29,6 +29,7 @@ def load_libs():
     from scripts.trained_models import trained_models, seq_orders
     from scripts.simulate_training_data import generate_training_reads
     from scripts.annotate_new_data import (
+        get_gpu_handles,
         annotate_new_data_parallel,
         preprocess_sequences,
     )
@@ -43,6 +44,7 @@ def load_libs():
             seq_orders,
             ont_read_annotator,
             DynamicPaddingDataGenerator,
+            get_gpu_handles,
             annotate_new_data_parallel,
             preprocess_sequences,
             extract_annotated_full_length_seqs,
@@ -61,10 +63,19 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
     generate_training_reads,
     seq_orders, ont_read_annotator,
     DynamicPaddingDataGenerator,
+    get_gpu_handles,
     annotate_new_data_parallel,
     preprocess_sequences,
     extract_annotated_full_length_seqs,
     save_plots_to_pdf) = load_libs()
+
+    # Let user know whether they're running on CPU only or GPU (provided handles if so)
+    # TODO: This may be able to be moved into the available GPUs/handles class
+    handles = get_gpu_handles()
+    if len(handles) == 0:
+        logger.info("No GPUs detected - running in CPU-only mode")
+    else:
+        logger.info(f"GPUs detected - running on {len(handles)} GPUs (names: {', '.join(handles)})")
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(base_dir, "..")

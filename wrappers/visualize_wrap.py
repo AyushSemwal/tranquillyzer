@@ -22,14 +22,14 @@ def load_libs():
     from scripts.extract_annotated_seqs import (
         extract_annotated_full_length_seqs,
     )
-    from scripts.annotate_new_data import build_model, preprocess_sequences
+    from scripts.annotate_new_data import get_gpu_handles, build_model, preprocess_sequences
     from scripts.trained_models import trained_models, seq_orders
     from scripts.annotate_new_data import annotate_new_data_parallel
     from scripts.visualize_annot import save_plots_to_pdf
 
     return (os, sys, time, resource, random, pickle,
             LabelBinarizer, tf, extract_annotated_full_length_seqs,
-            build_model, preprocess_sequences, trained_models,
+            get_gpu_handles, build_model, preprocess_sequences, trained_models,
             seq_orders, annotate_new_data_parallel, save_plots_to_pdf)
 
 
@@ -39,7 +39,7 @@ def visualize_wrap(output_dir, output_file, model_name, model_type,
 
     (os, sys, time, resource, random, pickle,
      LabelBinarizer, tf, extract_annotated_full_length_seqs,
-     build_model, preprocess_sequences, trained_models,
+     get_gpu_handles, build_model, preprocess_sequences, trained_models,
      seq_orders, annotate_new_data_parallel, save_plots_to_pdf) = load_libs()
 
     # Exit early if bad inputs given
@@ -48,6 +48,14 @@ def visualize_wrap(output_dir, output_file, model_name, model_type,
         raise ValueError("You must either provide a value for 'num_reads' or specify 'read_names'.")
 
     start = time.time()
+
+    # Let user know whether they're running on CPU only or GPU (provided handles if so)
+    # TODO: This may be able to be moved into the available GPUs/handles class
+    handles = get_gpu_handles()
+    if len(handles) == 0:
+        logger.info("No GPUs detected - running in CPU-only mode")
+    else:
+        logger.info(f"GPUs detected - running on {len(handles)} GPUs (names: {', '.join(handles)})")
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.abspath(os.path.join(base_dir, ".."))
