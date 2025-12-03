@@ -18,6 +18,7 @@ import tensorflow_addons as tfa
 from tf2crf import CRF, ModelWithCRFLoss
 
 import os, tensorflow as tf
+# TODO: This may be able to be moved into the available GPUs/handles class
 os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, range(tf.config.list_physical_devices('GPU').__len__())))
 tf.config.experimental.enable_tensor_float_32_execution(False)
 
