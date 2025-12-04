@@ -18,7 +18,6 @@ def load_libs():
     warnings.filterwarnings('ignore', category=UserWarning,
                         module='tensorflow')
 
-    import tensorflow as tf
     from scripts.extract_annotated_seqs import (
         extract_annotated_full_length_seqs,
     )
@@ -29,7 +28,7 @@ def load_libs():
     from scripts.available_gpus import log_gpus_used
 
     return (os, sys, time, resource, random, pickle,
-            LabelBinarizer, tf, extract_annotated_full_length_seqs,
+            LabelBinarizer, extract_annotated_full_length_seqs,
             build_model, preprocess_sequences, trained_models,
             seq_orders, annotate_new_data_parallel, save_plots_to_pdf, log_gpus_used)
 
@@ -39,7 +38,7 @@ def visualize_wrap(output_dir, output_file, model_name, model_type,
                    min_batch_size, max_batch_size, num_reads, read_names, threads):
 
     (os, sys, time, resource, random, pickle,
-     LabelBinarizer, tf, extract_annotated_full_length_seqs,
+     LabelBinarizer, extract_annotated_full_length_seqs,
      build_model, preprocess_sequences, trained_models,
      seq_orders, annotate_new_data_parallel, save_plots_to_pdf, log_gpus_used) = load_libs()
 
