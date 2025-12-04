@@ -4,6 +4,10 @@ Module usage
 First `import available_gpus` call sets up all functions within module and makes
 them available to call. All imports of available_gpus will retain the same
 values within a single run of tranquillyzer.
+
+TODO: This entire module is currently set up under the premise that all GPUs
+will available will be used. When this gets changed, this module will need
+reworked accordingly.
 """
 import logging
 
