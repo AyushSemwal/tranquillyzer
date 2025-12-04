@@ -40,6 +40,10 @@ def get_gpu_names_raw():
     """
     return [f"{dev.name}" for dev in _GPUS]
 
+def gpus_to_visible_devices_string():
+    """Provide the GPU numbers as a comma-separated string"""
+    return ",".join(map(str, range(n_gpus())))
+
 def log_gpus_used():
     """Adds log message about which GPUs are used."""
     # TODO: This may need to be updated if/when user is allowed to choose which
