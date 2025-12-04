@@ -4,6 +4,26 @@ import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow')
+import logging
+
+# Define logging for entire program here
+def setup_logger():
+    """
+    Setup logging for tranquillyzer. Allows for consistent formatting across all
+    modules. By putting this in a function, we can also encapsulate all setup in
+    one location in case we want to prettify the output. All modules should run
+
+    import logging
+    logger = logging.getLogger(__name__)
+
+    at the top of its file to become children of this main logger
+    """
+    FORMAT = '{asctime} - {name:<35} - {levelname:<7} - {message}'
+    logging.basicConfig(format=FORMAT, style='{', level=logging.INFO)
+
+    return logging.getLogger(__name__)
+
+logger = setup_logger()
 
 # =========================
 # versioning and app setup

@@ -1,10 +1,13 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 def preprocess_wrap(fasta_dir, output_dir,
                     output_base_qual,
                     chunk_size, threads):
     import os
     import time
     import resource
-    import logging
 
     from scripts.preprocess_reads import (
         parallel_preprocess_data,
@@ -12,12 +15,6 @@ def preprocess_wrap(fasta_dir, output_dir,
         extract_and_bin_reads,
         convert_tsv_to_parquet,
         )
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-    logger = logging.getLogger(__name__)
 
     os.system("mkdir -p " + output_dir + "/full_length_pp_fa")
     files_to_process = find_sequence_files(fasta_dir)

@@ -1,5 +1,7 @@
+import logging
 import os
 
+logger = logging.getLogger(__name__)
 
 def trained_models():
     base_dir = os.path.dirname(os.path.abspath(__file__))

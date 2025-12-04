@@ -14,10 +14,6 @@ from scripts.train_new_model import ont_read_annotator
 from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 # Create a NumPy lookup array (256 elements to handle all ASCII characters)
@@ -29,6 +25,7 @@ NUCLEOTIDE_TO_ID[ord('T')] = 4
 NUCLEOTIDE_TO_ID[ord('N')] = 5  # Default encoding for unknown nucleotides
 
 # Enable memory growth to avoid pre-allocating all GPU memory
+# TODO: This may be able to be moved into the available GPUs/handles class
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if len(gpus) > 0:
     for gpu in gpus:
@@ -76,6 +73,7 @@ def num_replicas(strategy=None):
 
 
 # Returns logical GPU handles like 'GPU:0', 'GPU:1', ...
+# TODO: This may be able to be moved into the available GPUs/handles class
 def get_gpu_handles():
     return [f"GPU:{i}" for i, _ in enumerate(tf.config.list_physical_devices("GPU"))]
 
@@ -201,6 +199,7 @@ def predict_with_backoff(model, build_dataset_fn,
             logger.warning(f"OOM at batch={bs}. Retrying with smaller batch...")
             K.clear_session()
             gc.collect()
+            # TODO: This may be able to be moved into the available GPUs/handles class
             for dev in tf.config.list_physical_devices('GPU'):
                 try:
                     tf.config.experimental.reset_memory_stats(dev.name)
@@ -300,6 +299,7 @@ def model_predictions(parquet_file, chunk_start, chunk_size,
     num_chunks = (total_rows // dynamic_chunk_size) + (1 if total_rows % dynamic_chunk_size > 0 else 0)
 
     # Build/load model once (CPU: no strategy; GPU: MirroredStrategy)
+    # TODO: This may be able to be moved into the available GPUs/handles class
     gpus = tf.config.list_physical_devices("GPU")
     min_batch = int(len(gpus)) if len(gpus) > 0 else min_batch
     strategy = tf.distribute.MirroredStrategy() if gpus else None

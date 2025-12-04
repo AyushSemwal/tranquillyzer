@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 

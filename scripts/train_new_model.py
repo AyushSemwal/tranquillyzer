@@ -1,3 +1,5 @@
+import logging
+
 from tensorflow.keras.layers import (
     Input, Embedding, Conv1D, BatchNormalization, Dropout,
     Bidirectional, LSTM, Dense, TimeDistributed, Add, MultiHeadAttention
@@ -16,8 +18,11 @@ import tensorflow_addons as tfa
 from tf2crf import CRF, ModelWithCRFLoss
 
 import os, tensorflow as tf
+# TODO: This may be able to be moved into the available GPUs/handles class
 os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, range(tf.config.list_physical_devices('GPU').__len__())))
 tf.config.experimental.enable_tensor_float_32_execution(False)
+
+logger = logging.getLogger(__name__)
 
 # Mapping nucleotides to integers
 nucleotide_to_id = {'A': 1, 'C': 2, 'G': 3, 'T': 4, 'N': 5}

@@ -1,9 +1,13 @@
+# Want logger available to all objects in module
+import logging
+
+logger = logging.getLogger(__name__)
+
 def load_libs():
     import os
     import gc
     import json
     import time
-    import logging
     import pickle
     import random
     import itertools
@@ -25,13 +29,14 @@ def load_libs():
     from scripts.trained_models import trained_models, seq_orders
     from scripts.simulate_training_data import generate_training_reads
     from scripts.annotate_new_data import (
+        get_gpu_handles,
         annotate_new_data_parallel,
         preprocess_sequences,
     )
     from scripts.extract_annotated_seqs import extract_annotated_full_length_seqs
     from scripts.visualize_annot import save_plots_to_pdf
 
-    return (os, gc, json, time, logging, pickle,
+    return (os, gc, json, time, pickle,
             random, itertools, Counter,
             np, pd, tf, SeqIO, Seq, SeqRecord,
             LabelBinarizer, shuffle,
@@ -39,6 +44,7 @@ def load_libs():
             seq_orders,
             ont_read_annotator,
             DynamicPaddingDataGenerator,
+            get_gpu_handles,
             annotate_new_data_parallel,
             preprocess_sequences,
             extract_annotated_full_length_seqs,
@@ -50,23 +56,26 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
                      threads, rc, transcriptome, invalid_fraction, gpu_mem,
                      target_tokens, vram_headroom, min_batch_size, max_batch_size):
 
-    (os, gc, json, time, logging,
+    (os, gc, json, time,
     pickle, random, itertools, Counter,
     np, pd, tf, SeqIO, Seq, SeqRecord,
     LabelBinarizer, shuffle,
     generate_training_reads,
     seq_orders, ont_read_annotator,
     DynamicPaddingDataGenerator,
+    get_gpu_handles,
     annotate_new_data_parallel,
     preprocess_sequences,
     extract_annotated_full_length_seqs,
     save_plots_to_pdf) = load_libs()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-    logger = logging.getLogger(__name__)
+    # Let user know whether they're running on CPU only or GPU (provided handles if so)
+    # TODO: This may be able to be moved into the available GPUs/handles class
+    handles = get_gpu_handles()
+    if len(handles) == 0:
+        logger.info("No GPUs detected - running in CPU-only mode")
+    else:
+        logger.info(f"GPUs detected - running on {len(handles)} GPUs (names: {', '.join(handles)})")
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(base_dir, "..")

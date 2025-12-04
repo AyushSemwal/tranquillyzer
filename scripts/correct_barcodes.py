@@ -1,3 +1,4 @@
+import logging
 import os
 import gc
 import tensorflow as tf
@@ -15,6 +16,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from scripts.demultiplex import assign_cell_id
 
+logger = logging.getLogger(__name__)
 
 def reverse_complement(seq):
     complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
