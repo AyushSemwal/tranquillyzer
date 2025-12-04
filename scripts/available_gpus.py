@@ -5,7 +5,11 @@ First `import available_gpus` call sets up all functions within module and makes
 them available to call. All imports of available_gpus will retain the same
 values within a single run of tranquillyzer.
 """
+import logging
+
 import tensorflow as tf
+
+logger = logging.getLogger(__name__)
 
 # List of GPUs available to TensorFlow
 # This is before any masking is done on GPUs to limit those available
@@ -31,6 +35,15 @@ def get_gpu_names_raw():
     tf.config.list_physical_devices('GPU')
     """
     return [f"{dev.name}" for dev in _GPUS]
+
+def log_gpus_used():
+    """Adds log message about which GPUs are used."""
+    # TODO: This may need to be updated if/when user is allowed to choose which
+    #       GPUs to run with
+    if n_gpus() > 0:
+        logger.info(f"GPUs detected - running on {n_gpus()} GPUS (names: {', '.join(get_gpu_names_clean())})")
+    else:
+        logger.info("No GPUs detected - running in CPU-only mode")
 
 def available_gpus():
     """Formats a nice table for available GPUs"""
