@@ -18,7 +18,7 @@ import tensorflow_addons as tfa
 from tf2crf import CRF, ModelWithCRFLoss
 
 import os, tensorflow as tf
-from available_gpus import gpus_to_visible_devices_string
+from scripts.available_gpus import gpus_to_visible_devices_string
 # TODO: Will need to think about how to handle this when users are able to pick
 #       which specific GPUs to use. This may need to be set elsewhere, or still
 #       set here, but using a different function

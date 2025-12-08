@@ -11,7 +11,7 @@ from typing import Optional
 from numba import njit
 
 from scripts.train_new_model import ont_read_annotator
-import scripts.available_gpus
+import scripts.available_gpus as available_gpus
 from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
 
