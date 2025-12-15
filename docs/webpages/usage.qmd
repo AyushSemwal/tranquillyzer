@@ -3,7 +3,7 @@ title: Usage
 ---
 
 This page gives a detailed description of each component/subcommand of Tranquillyzer. For a quick overview of how to run
-Tranquillyzer, see the [Quick Start](webpages/quick_start.qmd) guide.
+Tranquillyzer, see the [Quick Start](quick_start.qmd) guide.
 
 # Input / Output
 
