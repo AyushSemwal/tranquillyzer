@@ -425,4 +425,66 @@ Optional Arguments
 
 # Model Training
 
-Coming soon!
+## Overview
+
+There are several reasons you may need to train your own model. You may be developing a new long read RNA-seq library
+preparation and need to extract specific elements from the sequenced reads. Or, you may be using an existing protocol
+that has an existing model that does not quite meet your needs, whether you need to adjust parameters from the existing
+model or incorporate newly discovered artifacts that the model needs to learn. The `train-model` subcommand allows the
+user to develop their own model and tune it to their specific needs. The following information is output:
+
+- Model weights / SavedModel (`<model_name>_<idx>.h5` or `SavedModel`)
+- Fitted label binarizer (`<model_name>_<idx>_lbl_bin.pkl`)
+- Training history (`<model_name>_<idx>_history.tsv`)
+- Validation visualization on a small synthetic set (`<model_name>_<idx>_val_viz.pdf`)
+
+The `<idx>` value is determined based on the combinations of parameters that are used from the `param-file` input. For
+more details on the nuances of training a model, see the [Model Training page](model_training.qmd).
+
+## Usage
+
+```bash
+tranquillyzer train-model \
+    [OPTIONS] \
+    MODEL_NAME \
+    OUTPUT_DIR
+```
+
+## Command Line Arguments
+
+Required Arguments
+
+- `MODEL_NAME`: Name of the model to select from the `param-file` input file
+- `OUTPUT_DIR`: Directory to write output directories and files to
+
+Optional Arguments
+
+- `--param-file TEXT`: Path to training parameters file. If not provided, uses the default: `utils/training_params.tsv`
+  (default: None)
+- `--training-seq-orders-file TEXT`: Path to the sequence order file. If not provided, uses the default:
+  `utils/training_seq_orders.tsv` (default: None)
+- `--num-val-reads INTEGER`: Number of reads to simulate (default: 20)
+- `--mismatch-rate FLOAT`: Mismatch rate (default: 0.05)
+- `--insertion-rate FLOAT`: Insertion rate (default: 0.05)
+- `--deletion-rate FLOAT`: Deletion rate (default: 0.06)
+- `--min-cdna INTEGER`: Minimum cDNA length (default: 100)
+- `--max-cdna INTEGER`: Maximum cDNA length (default: 500)
+- `--polyt-error-rate FLOAT`: Error rate within polyT or polyA segments (default: 0.02)
+- `--max-insertions FLOAT`: Maximum number of allowed insertions after a base (default: 2)
+- `--threads INTEGER`: Number of CPU threads (default: 2)
+- `--rc` / `--no-rc`: Whether to include reverse complements of the reads in the training data. If `rc`, final dataset
+  will contain twice the number of user-specified reads (default: `rc`)
+- `--transcriptome TEXT`: Transcriptome FASTA file. Used to generate cDNA if provided (default: None)
+- `--invalid-fraction FLOAT`: Fraction of invalid reads to generate (default: 0.3)
+- `--gpu-mem TEXT`: Total memory of the GPU in gigabytes (GB). For a single GPU or multiple GPUs with the same memory,
+  specify one integer. If there are multiple GPUs with different memory allocations, specify a comma-separated list
+  (e.g., `8,16,32`). If not specified and at least one GPU is available, 12 GB will be used by default (default: None)
+- `--target-tokens INTEGER`: Approximate token budget *per GPU* - used to pick a safe batch size. A "token" is one input
+  position after padding (for cDNA: 1 base ~ 1 token). The number of effective tokens per GPU is approximately `batch
+  size * padded sequence length`. For larger batch sizes (which require more memory), increase this value. If you hit an
+  out-of-memory error, decrease this value. For those running on CPU, this will guide batch size heuristics even though
+  it is not needed in the same way as on a GPU. (default: 1,200,000)
+- `--vram-headroom FLOAT`: Fraction of GPU memory to reserve as headroom (default: 0.35)
+- `--min-batch-size INTEGER`: Minimum batch size for model inference (default: 1)
+- `--max-batch-size INTEGER`: Maximum batch size for model inference (default: 2000)
+- `--help`: Print help message and exit
