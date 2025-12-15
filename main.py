@@ -392,7 +392,7 @@ def align(
     ref: str,
     output_dir: str,
     preset: str = typer.Option("splice", help="minimap2 preset"),
-    filt_flag: str = typer.Option("0", help=(
+    filt_flag: str = typer.Option("260", help=(
         "Flag for filtering out (-F in samtools) the reads. "
         "Default is 260, to filter out secondary alignments "
         "and unmapped reads."
