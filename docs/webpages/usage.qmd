@@ -112,6 +112,30 @@ Optional Arguments
 
 - `--help`: Print help message and exit
 
+# Available GPUs
+
+## Overview
+
+A utility subcommand to query the GPU. Allows the user to see the names of the available GPUs. If no GPUs can be found,
+the user is alerted that Tranquillyzer will run in CPU-only mode.
+
+## Usage
+
+```bash
+tranquillyzer available-gpus \
+    [OPTIONS]
+```
+
+## Command Line Arguments
+
+Required Arguments
+
+- None
+
+Optional Arguments
+
+- `--help`: Print help message and exit
+
 # Annotation, Barcode Correction, and Demultiplexing
 
 ## Overview
