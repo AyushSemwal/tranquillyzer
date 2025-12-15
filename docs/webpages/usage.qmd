@@ -82,7 +82,7 @@ tranquillyzer readlengthdist \
 
 Required Arguments
 
-- `OUTPUT_DIR`: Path to your OUTPUT directory
+- `OUTPUT_DIR`: Path to your OUTPUT directory, should be the same `OUTPUT_DIR` from `preprocess`
 
 Optional Arguments
 
@@ -163,7 +163,7 @@ tranquillyzer annotate-reads \
 
 Required Arguments
 
-- `OUTPUT_DIR`: Path to your OUTPUT directory
+- `OUTPUT_DIR`: Path to your OUTPUT directory, should be the same `OUTPUT_DIR` as `preprocess`
 - `WHITELIST_FILE`: TSV file containing the sequences that define each sample (e.g., the cell barcode (CBC) and/or dual
   index sequences). **Note**, the column names for these sequences must match the name used for that element in the
   model training. For example, if the model uses CBC to denote the cell barcode, the `WHITELIST_FILE` must have a column
@@ -172,12 +172,24 @@ Required Arguments
 Optional Arguments
 
 - `--output-fmt TEXT`: Output format for demultiplexed reads: `fasta` or `fastq` (default: `fasta`)
-- `--model-name TEXT:` Base model name (the name of the model without any suffixes) (default: `10x3p_sc_ont_011`)
-  For `--model-type CRF`, `_w_CRF` will be appended to the base model name
+- `--model-name TEXT:` Base model name (the name of the model without any file suffixes). For `--model-type CRF`,
+  `_w_CRF` will be appended to the base model name. (default: `10x3p_sc_ont_011`)
 - `--model-type TEXT`: The type of model to run (see above for descriptions of each type): `REG`, `CRF`, or `HYB`
   (default: `HYB`)
-- `--strand TEXT`: Strand information of the reads: `3'`, `5'`, or `unstranded` (default: `unstranded`)
+- `--seq-order-file TEXT`: Path to the sequence orders file. If not provided, uses the default: `utils/seq_orders.tsv`
+  (default: None)
 - `--chunk-size INTEGER`: Base chunk size for processing, dynamically adjusts based on read length (default: 100000)
+- `--gpu-mem TEXT`: Total memory of the GPU in gigabytes (GB). For a single GPU or multiple GPUs with the same memory,
+  specify one integer. If there are multiple GPUs with different memory allocations, specify a comma-separated list
+  (e.g., `8,16,32`). If not specified and at least one GPU is available, 12 GB will be used by default (default: None)
+- `--target-tokens INTEGER`: Approximate token budget *per GPU* - used to pick a safe batch size. A "token" is one input
+  position after padding (for cDNA: 1 base ~ 1 token). The number of effective tokens per GPU is approximately `batch
+  size * padded sequence length`. For larger batch sizes (which require more memory), increase this value. If you hit an
+  out-of-memory error, decrease this value. For those running on CPU, this will guide batch size heuristics even though
+  it is not needed in the same way as on a GPU. (default: 1,200,000)
+- `--vram-headroom FLOAT`: Fraction of GPU memory to reserve as headroom (default: 0.35)
+- `--min-batch-size INTEGER`: Minimum batch size for model inference (default: 1)
+- `--max-batch-size INTEGER`: Maximum batch size for model inference (default: 8192)
 - `--bc-lv-threshold INTEGER`: Levenshtein distance threshold for barcode correction (default: 2)
 - `--threads INTEGER`: Number of CPU threads for barcode correction and demultiplexing (default: 12)
 - `--max-queue-size INTEGER`: Max number of Parquet files to queue for post-processing (default: 3)
@@ -211,12 +223,12 @@ Required Arguments
 
 Optional Arguments
 
-- `--preset TEXT`: `minimap2` preset (i.e., `minimap2 -ax <preset> ...` (default: None)
+- `--preset TEXT`: `minimap2` preset (i.e., `minimap2 -ax <preset> ...`) (default: `splice`)
 - `--filt-flag INT`: Flag for filtering reads via `samtools view -F <INT> ...`. Default is to filter out secondary
   alignments and unmapped reads (default: 260)
 - `--mapq INTEGER`: Minimum MAPQ for the alignments to be included for the downstream analysis (default: 0)
 - `--threads INTEGER`: Number of CPU threads (default: 12)
-- `--add-minimap-args TEXT`: additional `minimap2` arguments (`-t` and `-ax <preset>` already included)
+- `--add-minimap-args TEXT`: Additional `minimap2` arguments (`-t` and `-ax <preset>` already included)
 - `--help`: Show this message and exit
 
 # Duplicate Marking
@@ -285,10 +297,23 @@ Required Arguments
 Optional Arguments
 
 - `--output-file TEXT`: Prefix for output file name. `.pdf` will be added automatically (default: `full_read_annots`)
-- `--model-name TEXT`: Base model name (the name of the model without any suffixes)  (default: `10x3p_sc_ont_011`)
-  For `--model-type CRF`, `_w_CRF` will be added to the base model name
+- `--model-name TEXT:` Base model name (the name of the model without any file suffixes). For `--model-type CRF`,
+  `_w_CRF` will be appended to the base model name. (default: `10x3p_sc_ont_011`)
 - `--model-type TEXT`: The type of model to run (see `annotate-reads` usage for descriptions of each type): REG, CRF,
   or HYB (default: CRF)
+- `--seq-order-file TEXT`: Path to the sequence orders file. If not provided, uses the default: `utils/seq_orders.tsv`
+  (default: None)
+- `--gpu-mem TEXT`: Total memory of the GPU in gigabytes (GB). For a single GPU or multiple GPUs with the same memory,
+  specify one integer. If there are multiple GPUs with different memory allocations, specify a comma-separated list
+  (e.g., `8,16,32`). If not specified and at least one GPU is available, 12 GB will be used by default (default: None)
+- `--target-tokens INTEGER`: Approximate token budget *per GPU* - used to pick a safe batch size. A "token" is one input
+  position after padding (for cDNA: 1 base ~ 1 token). The number of effective tokens per GPU is approximately `batch
+  size * padded sequence length`. For larger batch sizes (which require more memory), increase this value. If you hit an
+  out-of-memory error, decrease this value. For those running on CPU, this will guide batch size heuristics even though
+  it is not needed in the same way as on a GPU. (default: 1,200,000)
+- `--vram-headroom FLOAT`: Fraction of GPU memory to reserve as headroom (default: 0.35)
+- `--min-batch-size INTEGER`: Minimum batch size for model inference (default: 1)
+- `--max-batch-size INTEGER`: Maximum batch size for model inference (default: 8192)
 - `--num-reads INTEGER`: Number of reads to randomly visualize from each Parquet file. (default: None)
 - `--read-names TEXT`: Comma-separated list of read names to visualize (default: None)
 - `--threads INTEGER`: Number of CPU threads (default: 2)
@@ -344,11 +369,13 @@ tranquillyzer simulate-data \
 Required Arguments
 
 - `MODEL_NAME`: Name of model to generate reads for (follows library structure matching `MODEL_NAME` in
-  `utils/training_seq_orders.tsv`
+  `--training-seq-orders-files`
 - `OUTPUT_DIR`: Where to write the output FASTA file(s) to
 
 Optional Arguments
 
+- `--training-seq-orders-files TEXT`: Path to the sequence order file used for training. If not provided, uses the
+  default: `utils/training_seq_orders.tsv` (default: None)
 - `--num-reads INTEGER`: Number of reads to simulate (default: 50000)
 - `--mismatch-rate FLOAT`: Mismatch rate (default: 0.05)
 - `--insertion-rate FLOAT`: Insertion rate (default: 0.05)
