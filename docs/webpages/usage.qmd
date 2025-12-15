@@ -307,8 +307,16 @@ after running `tranquillyzer annotate-reads` as the `visualize` command is indep
 ## Usage
 
 ```bash
+# N random reads
 tranquillyzer visualize \
     [OPTIONS] \
+    --num-reads N \
+    OUTPUT_DIR
+
+# Specify read names
+tranquillyzer visualize \
+    [OPTIONS] \
+    --read-names read1,read2,read3
     OUTPUT_DIR
 ```
 
