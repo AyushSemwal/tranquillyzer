@@ -1,12 +1,12 @@
 import typer
 from typing_extensions import Annotated
+import logging
 import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="tensorflow")
-import logging
 
 
 # Define logging for entire program here
