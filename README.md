@@ -33,17 +33,21 @@ respective cells at this time. After annotating and demultiplexing, the reads ar
 BAM output from this step can then be used to determine feature counts matrices. Tranquillyzer also provides a variety
 of associated functionality including visualizing annotated reads and quality control metrics, training models for new
 sequencing architectures or to improve the annotation capability, and the ability to simulate reads for use in model
-training. A more detailed overview of Tranquillyzer can be [found in the documentation](docs/index.qmd).
+training. A more detailed overview of Tranquillyzer can be
+[found in the online documentation](https://huishenlab.github.io/tranquillyzer/).
 
 # Quick Start and General Usage
 
-For a guide to getting started with Tranquillyzer, see the [Quick Start guide](docs/webpages/quick_start.qmd). For more
-detailed notes on using Tranquillyzer, see the [Usage page](docs/webpages/usage.qmd).
+Documentation for Tranquillyzer: <https://huishenlab.github.io/tranquillyzer/>.
+
+For a guide to getting started with Tranquillyzer, see the
+[Quick Start guide](https://huishenlab.github.io/tranquillyzer/webpages/quick_start.html). For more detailed notes on
+using Tranquillyzer, see the [Usage page](https://huishenlab.github.io/tranquillyzer/webpages/usage.html).
 
 # Installation
 
-Tranquillyzer is available through a variety of methods. See the [Installation](docs/webpages/install.qmd) page for
-details.
+Tranquillyzer is available through a variety of methods. See the
+[Installation](https://huishenlab.github.io/tranquillyzer/webpages/install.html) page for details.
 
 # Issues
 
