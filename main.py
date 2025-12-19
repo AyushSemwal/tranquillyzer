@@ -4,6 +4,7 @@ import logging
 import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="tensorflow")
@@ -113,7 +114,7 @@ def available_gpus():
         Clean Names - Cleaned names based on number of GPUs
     """
     print("Querying GPUs - this may take some time...")
-
+    
     import scripts.available_gpus as available_gpus
 
     available_gpus.available_gpus()
@@ -137,8 +138,9 @@ def preprocess(
 
     Steps:
       1) Discover sequence files under `fasta_dir`.
-      2) If one file: extract & bin reads serially into TSV chunks, then convert to Parquet.
-         If multiple: run `parallel_preprocess_data` across `threads`.
+      2) If one file: extract & bin reads serially into TSV chunks,
+      then convert to Parquet.
+      If multiple: run `parallel_preprocess_data` across `threads`.
       3) Record peak memory and runtime.
 
     Args:
@@ -231,7 +233,7 @@ def visualize(
                 specify an integer\n
                 => If there are mutliple GPUs with different memories,
                 specify a comma-separated list (e.g., 8,16,32)\n
-                => If nothing is specified and one or more GPUs are available, 
+                => If nothing is specified and one or more GPUs are available,
                 12 GB will be used by default.\n
                 """
         ),
@@ -724,6 +726,29 @@ def train_model(
         max_batch_size,
     )
 
+    train_model_wrap(
+        model_name,
+        output_dir,
+        param_file,
+        training_seq_orders_file,
+        num_val_reads,
+        mismatch_rate,
+        insertion_rate,
+        deletion_rate,
+        min_cDNA,
+        max_cDNA,
+        polyT_error_rate,
+        max_insertions,
+        threads,
+        rc,
+        transcriptome,
+        invalid_fraction,
+        gpu_mem,
+        target_tokens,
+        vram_headroom,
+        min_batch_size,
+        max_batch_size,
+    )
 
 if __name__ == "__main__":
     app()
