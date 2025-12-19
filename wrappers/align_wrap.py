@@ -2,9 +2,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def align_wrap(input_dir, ref, output_dir, preset,
-               filt_flag, mapq, threads, add_minimap_args):
 
+def align_wrap(input_dir, ref, output_dir, preset, filt_flag, mapq, threads, add_minimap_args):
     import os
     import time
     import subprocess
@@ -19,8 +18,8 @@ def align_wrap(input_dir, ref, output_dir, preset,
     else:
         raise FileNotFoundError("No demuxed FASTA or FASTQ file found in the input directory.")
 
-    os.makedirs(f'{output_dir}/aligned_files', exist_ok=True)
-    output_bam_dir = os.path.join(output_dir, 'aligned_files')
+    os.makedirs(f"{output_dir}/aligned_files", exist_ok=True)
+    output_bam_dir = os.path.join(output_dir, "aligned_files")
 
     output_bam = os.path.join(output_bam_dir, "demuxed_aligned.bam")
 

@@ -2,8 +2,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def dedup_wrap(input_dir, lv_threshold,
-               stranded, per_cell, threads):
+
+def dedup_wrap(input_dir, lv_threshold, stranded, per_cell, threads):
     import os
     import time
     import resource
@@ -21,9 +21,7 @@ def dedup_wrap(input_dir, lv_threshold,
     input_bam = os.path.join(input_dir, aligned_bam)
     out_bam = os.path.join(input_dir, dup_marked_bam)
 
-    deduplication_parallel(input_bam, out_bam,
-                           lv_threshold, per_cell,
-                           threads, stranded)
+    deduplication_parallel(input_bam, out_bam, lv_threshold, per_cell, threads, stranded)
 
     if not os.path.exists(out_bam):
         raise FileNotFoundError(f"Expected output BAM not found: {out_bam}")

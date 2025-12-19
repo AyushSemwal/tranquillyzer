@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def load_libs():
     import os
     import gc
@@ -36,36 +37,85 @@ def load_libs():
     from scripts.visualize_annot import save_plots_to_pdf
     from scripts.available_gpus import log_gpus_used
 
-    return (os, gc, json, time, pickle,
-            random, itertools, Counter,
-            np, pd, tf, SeqIO, Seq, SeqRecord,
-            LabelBinarizer, shuffle,
-            generate_training_reads,
-            seq_orders,
-            ont_read_annotator,
-            DynamicPaddingDataGenerator,
-            annotate_new_data_parallel,
-            preprocess_sequences,
-            extract_annotated_full_length_seqs,
-            save_plots_to_pdf, log_gpus_used)
+    return (
+        os,
+        gc,
+        json,
+        time,
+        pickle,
+        random,
+        itertools,
+        Counter,
+        np,
+        pd,
+        tf,
+        SeqIO,
+        Seq,
+        SeqRecord,
+        LabelBinarizer,
+        shuffle,
+        generate_training_reads,
+        seq_orders,
+        ont_read_annotator,
+        DynamicPaddingDataGenerator,
+        annotate_new_data_parallel,
+        preprocess_sequences,
+        extract_annotated_full_length_seqs,
+        save_plots_to_pdf,
+        log_gpus_used,
+    )
 
-def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_file,
-                     num_val_reads, mismatch_rate, insertion_rate, deletion_rate,
-                     min_cDNA, max_cDNA, polyT_error_rate, max_insertions,
-                     threads, rc, transcriptome, invalid_fraction, gpu_mem,
-                     target_tokens, vram_headroom, min_batch_size, max_batch_size):
 
-    (os, gc, json, time,
-    pickle, random, itertools, Counter,
-    np, pd, tf, SeqIO, Seq, SeqRecord,
-    LabelBinarizer, shuffle,
-    generate_training_reads,
-    seq_orders, ont_read_annotator,
-    DynamicPaddingDataGenerator,
-    annotate_new_data_parallel,
-    preprocess_sequences,
-    extract_annotated_full_length_seqs,
-    save_plots_to_pdf, log_gpus_used) = load_libs()
+def train_model_wrap(
+    model_name,
+    output_dir,
+    param_file,
+    training_seq_orders_file,
+    num_val_reads,
+    mismatch_rate,
+    insertion_rate,
+    deletion_rate,
+    min_cDNA,
+    max_cDNA,
+    polyT_error_rate,
+    max_insertions,
+    threads,
+    rc,
+    transcriptome,
+    invalid_fraction,
+    gpu_mem,
+    target_tokens,
+    vram_headroom,
+    min_batch_size,
+    max_batch_size,
+):
+    (
+        os,
+        gc,
+        json,
+        time,
+        pickle,
+        random,
+        itertools,
+        Counter,
+        np,
+        pd,
+        tf,
+        SeqIO,
+        Seq,
+        SeqRecord,
+        LabelBinarizer,
+        shuffle,
+        generate_training_reads,
+        seq_orders,
+        ont_read_annotator,
+        DynamicPaddingDataGenerator,
+        annotate_new_data_parallel,
+        preprocess_sequences,
+        extract_annotated_full_length_seqs,
+        save_plots_to_pdf,
+        log_gpus_used,
+    ) = load_libs()
 
     # Let user know whether they're running on CPU only or GPU (provided handles if so)
     log_gpus_used()
@@ -80,7 +130,7 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
     utils_dir = os.path.abspath(utils_dir)
 
     if param_file is None:
-        param_file = f'{utils_dir}/training_params.tsv'
+        param_file = f"{utils_dir}/training_params.tsv"
     if not os.path.exists(param_file):
         raise FileNotFoundError(f"Parameter file not found: {param_file}")
     if training_seq_orders_file is None:
@@ -102,16 +152,12 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
     logger.info(f"Extracting parameters for {model_name}")
 
     # Convert the model's parameter column to a dictionary of lists
-    param_dict = {
-        df.iloc[i, 0]: df.iloc[i][model_name].split(",") for i in range(len(df))
-    }
+    param_dict = {df.iloc[i, 0]: df.iloc[i][model_name].split(",") for i in range(len(df))}
 
     # Generate all possible combinations of parameters for this model
     param_combinations = list(itertools.product(*param_dict.values()))
     length_range = (min_cDNA, max_cDNA)
-    seq_order, sequences, barcodes, UMIs, strand = seq_orders(
-        training_seq_orders_file, model_name
-        )
+    seq_order, sequences, barcodes, UMIs, strand = seq_orders(training_seq_orders_file, model_name)
 
     print(f"seq orders: {seq_order}")
 
@@ -134,27 +180,33 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
             length = random.randint(min_cDNA, max_cDNA)
             seq_str = "".join(np.random.choice(list("ATCG")) for _ in range(length))
             record = SeqRecord(
-                Seq(seq_str),
-                id=f"random_transcript_{i+1}",
-                description=f"Synthetic transcript {i+1}"
+                Seq(seq_str), id=f"random_transcript_{i + 1}", description=f"Synthetic transcript {i + 1}"
             )
             transcriptome_records.append(record)
         logger.info(f"Generated {len(transcriptome_records)} synthetic transcripts")
 
     validation_reads, validation_labels = generate_training_reads(
-        num_val_reads, mismatch_rate, insertion_rate, deletion_rate,
-        polyT_error_rate, max_insertions, validation_segment_order,
-        validation_segment_pattern, length_range, threads, rc,
-        transcriptome_records, invalid_fraction)
+        num_val_reads,
+        mismatch_rate,
+        insertion_rate,
+        deletion_rate,
+        polyT_error_rate,
+        max_insertions,
+        validation_segment_order,
+        validation_segment_pattern,
+        length_range,
+        threads,
+        rc,
+        transcriptome_records,
+        invalid_fraction,
+    )
 
-    palette = ['red', 'blue', 'green', 'purple', 'pink',
-               'cyan', 'magenta', 'orange', 'brown']
-    colors = {'random_s': 'black', 'random_e': 'black', 'cDNA': 'gray',
-              'polyT': 'orange', 'polyA': 'orange'}
+    palette = ["red", "blue", "green", "purple", "pink", "cyan", "magenta", "orange", "brown"]
+    colors = {"random_s": "black", "random_e": "black", "cDNA": "gray", "polyT": "orange", "polyA": "orange"}
 
     i = 0
     for element in seq_order:
-        if element not in ['random_s', 'random_e', 'cDNA', 'polyT', 'polyA']:
+        if element not in ["random_s", "random_e", "cDNA", "polyT", "polyA"]:
             colors[element] = palette[i % len(palette)]  # Cycle through the palette
             i += 1
 
@@ -168,7 +220,7 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
         model_filename = f"{model_name}_{idx}.h5"
         param_filename = f"{model_name}_{idx}_params.json"
 
-        os.makedirs(f'{output_dir}/{model_name}_{idx}', exist_ok=True)
+        os.makedirs(f"{output_dir}/{model_name}_{idx}", exist_ok=True)
         params = dict(zip(param_dict.keys(), param_set))
 
         # Extract model parameters
@@ -221,10 +273,8 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
         logger.info(f"Validation Label Distribution: {Counter([label for seq in val_labels for label in seq])}")
 
         # Data generators
-        train_gen = DynamicPaddingDataGenerator(train_reads, train_labels,
-                                                batch_size, label_binarizer)
-        val_gen = DynamicPaddingDataGenerator(val_reads, val_labels,
-                                              batch_size, label_binarizer)
+        train_gen = DynamicPaddingDataGenerator(train_reads, train_labels, batch_size, label_binarizer)
+        val_gen = DynamicPaddingDataGenerator(val_reads, val_labels, batch_size, label_binarizer)
 
         # Multi-GPU strategy
         strategy = tf.distribute.MirroredStrategy()
@@ -245,7 +295,7 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
                 attention_heads=attention_heads,
                 dropout_rate=dropout_rate,
                 regularization=regularization,
-                learning_rate=learning_rate
+                learning_rate=learning_rate,
             )
 
         logger.info(f"Training {model_name}_{idx} with parameters: {params}")
@@ -254,17 +304,11 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
             _ = model(dummy_input)
 
             reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_val_accuracy',
-                factor=0.5,
-                patience=1,
-                min_lr=1e-5,
-                mode='max'
+                monitor="val_val_accuracy", factor=0.5, patience=1, min_lr=1e-5, mode="max"
             )
             early_stopping = tf.keras.callbacks.EarlyStopping(
-                monitor="val_loss_val",
-                patience=1,
-                restore_best_weights=True
-                )
+                monitor="val_loss_val", patience=1, restore_best_weights=True
+            )
 
             history = model.fit(
                 train_gen,
@@ -273,45 +317,42 @@ def train_model_wrap(model_name, output_dir, param_file, training_seq_orders_fil
                 callbacks=[early_stopping, reduce_lr],
                 workers=0,
                 use_multiprocessing=False,
-                )
+            )
             model.save_weights(f"{output_dir}/{model_name}_{idx}/{model_name}_{idx}.h5")
         else:
             reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_accuracy',
-                factor=0.5,
-                patience=1,
-                min_lr=1e-5,
-                mode='max'
-                )
-            early_stopping = tf.keras.callbacks.EarlyStopping(
-                monitor="val_loss",
-                patience=3,
-                restore_best_weights=True
+                monitor="val_accuracy", factor=0.5, patience=1, min_lr=1e-5, mode="max"
             )
+            early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)
 
             history = model.fit(
-                train_gen, validation_data=val_gen,
-                epochs=epochs, callbacks=[early_stopping, reduce_lr]
+                train_gen, validation_data=val_gen, epochs=epochs, callbacks=[early_stopping, reduce_lr]
             )
             model.save(f"{output_dir}/{model_name}_{idx}/{model_filename}")
 
         history_df = pd.DataFrame(history.history)
-        history_df.to_csv(f"{output_dir}/{model_name}_{idx}/{model_name}_{idx}_history.tsv",
-                          sep='\t', index=False)
+        history_df.to_csv(f"{output_dir}/{model_name}_{idx}/{model_name}_{idx}_history.tsv", sep="\t", index=False)
 
         encoded_data = preprocess_sequences(validation_reads)
-        predictions = annotate_new_data_parallel(encoded_data, model,
-                                                 max_batch_size,
-                                                 min_batch=min_batch_size,
-                                                 strategy=None)
-        annotated_reads = extract_annotated_full_length_seqs(
-            validation_reads, predictions,
-            crf_layer, validation_read_lengths,
-            label_binarizer, seq_order,
-            barcodes, n_jobs=1
+        predictions = annotate_new_data_parallel(
+            encoded_data, model, max_batch_size, min_batch=min_batch_size, strategy=None
         )
-        save_plots_to_pdf(validation_reads, annotated_reads,
-                          validation_read_names,
-                          f'{output_dir}/{model_name}_{idx}/{model_name}_{idx}_val_viz.pdf',
-                          colors, chars_per_line=150)
+        annotated_reads = extract_annotated_full_length_seqs(
+            validation_reads,
+            predictions,
+            crf_layer,
+            validation_read_lengths,
+            label_binarizer,
+            seq_order,
+            barcodes,
+            n_jobs=1,
+        )
+        save_plots_to_pdf(
+            validation_reads,
+            annotated_reads,
+            validation_read_names,
+            f"{output_dir}/{model_name}_{idx}/{model_name}_{idx}_val_viz.pdf",
+            colors,
+            chars_per_line=150,
+        )
         gc.collect()
