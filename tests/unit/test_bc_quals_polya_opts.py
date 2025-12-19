@@ -3,15 +3,15 @@ import pytest
 import sys
 import types
 
+from scripts.correct_barcodes import process_row
+from wrappers.annotate_reads_wrap import annotate_reads_wrap
+
 # Stub optional training-time deps so unit tests don't require them.
 sys.modules.setdefault("tensorflow_addons", types.SimpleNamespace())
 tf2crf_stub = types.ModuleType("tf2crf")
 tf2crf_stub.CRF = object()
 tf2crf_stub.ModelWithCRFLoss = object()
 sys.modules.setdefault("tf2crf", tf2crf_stub)
-
-from scripts.correct_barcodes import process_row
-from wrappers.annotate_reads_wrap import annotate_reads_wrap
 
 
 def make_whitelist():
