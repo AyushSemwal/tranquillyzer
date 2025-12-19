@@ -33,6 +33,7 @@ def collapse_labels(arr, read_length):
 
     return collapsed_array, count_dict, indices_dict
 
+
 # ============ check if elements are in expected order ============ #
 
 
@@ -54,7 +55,7 @@ def flexible_sliding_match(array, pattern):
     matches = []
     i = 0
     while i <= len(core_array) - len(pattern):
-        window = core_array[i:i + len(pattern)]
+        window = core_array[i : i + len(pattern)]
         if window == pattern:
             # Match found
             matches.append((start + i, start + i + len(pattern) - 1))
@@ -76,7 +77,7 @@ def check_order(collapsed_array, count_dict, expected_order):
         ("+", expected_order),
         ("+", expected_order_wo_polyA),
         ("-", expected_order[::-1]),
-        ("-", expected_order_wo_polyA[::-1])
+        ("-", expected_order_wo_polyA[::-1]),
     ]
 
     all_orientations = {}
@@ -113,11 +114,11 @@ def check_order(collapsed_array, count_dict, expected_order):
     reason = "Unexpected pattern: [" + "_".join(collapsed_array) + "]"
     return False, "", reason
 
+
 # =================== process full-length reads =================== #
 
 
 def process_full_len_reads(data, barcodes, label_binarizer, model_path_w_CRF):
-
     read, prediction, read_length, seq_order = data
 
     if model_path_w_CRF:
@@ -134,89 +135,87 @@ def process_full_len_reads(data, barcodes, label_binarizer, model_path_w_CRF):
     decoded_prediction = decoded_prediction[0:read_length]
 
     collapsed_array, count_dict, indices_dict = collapse_labels(decoded_prediction, read_length)
-    order_match, order, reasons = check_order(collapsed_array,
-                                              count_dict,
-                                              seq_order)
+    order_match, order, reasons = check_order(collapsed_array, count_dict, seq_order)
 
-    annotations = {element: {'Starts': [], 'Ends': [], 'Sequences': []} for element in seq_order}
-    annotations['random_s'] = {'Starts': [], 'Ends': [], 'Sequences': []}
-    annotations['random_e'] = {'Starts': [], 'Ends': [], 'Sequences': []}
-    annotations['read'] = read[0:read_length]
+    annotations = {element: {"Starts": [], "Ends": [], "Sequences": []} for element in seq_order}
+    annotations["random_s"] = {"Starts": [], "Ends": [], "Sequences": []}
+    annotations["random_e"] = {"Starts": [], "Ends": [], "Sequences": []}
+    annotations["read"] = read[0:read_length]
 
     for element in indices_dict:
         for coordinates in indices_dict[element]:
             start, end = coordinates
-            annotations[element]['Starts'].append(start)
-            annotations[element]['Ends'].append(end)
+            annotations[element]["Starts"].append(start)
+            annotations[element]["Ends"].append(end)
     if order_match:
-        if len(annotations["cDNA"]['Starts']) == 2:
+        if len(annotations["cDNA"]["Starts"]) == 2:
             if order == "+" and collapsed_array[0] == "cDNA":
-                annotations['random_s']['Starts'].append(annotations['cDNA']['Starts'][0])
-                annotations['random_s']['Ends'].append(annotations['cDNA']['Ends'][0])
-                annotations['cDNA']['Starts'] = [annotations['cDNA']['Starts'][1]]
-                annotations['cDNA']['Ends'] = [annotations['cDNA']['Ends'][1]]
+                annotations["random_s"]["Starts"].append(annotations["cDNA"]["Starts"][0])
+                annotations["random_s"]["Ends"].append(annotations["cDNA"]["Ends"][0])
+                annotations["cDNA"]["Starts"] = [annotations["cDNA"]["Starts"][1]]
+                annotations["cDNA"]["Ends"] = [annotations["cDNA"]["Ends"][1]]
             elif order == "+" and collapsed_array[-1] == "cDNA":
-                annotations['random_e']['Starts'].append(annotations['cDNA']['Starts'][1])
-                annotations['random_e']['Ends'].append(annotations['cDNA']['Ends'][1])
-                annotations['cDNA']['Starts'] = [annotations['cDNA']['Starts'][0]]
-                annotations['cDNA']['Ends'] = [annotations['cDNA']['Ends'][0]]
+                annotations["random_e"]["Starts"].append(annotations["cDNA"]["Starts"][1])
+                annotations["random_e"]["Ends"].append(annotations["cDNA"]["Ends"][1])
+                annotations["cDNA"]["Starts"] = [annotations["cDNA"]["Starts"][0]]
+                annotations["cDNA"]["Ends"] = [annotations["cDNA"]["Ends"][0]]
             elif order == "-" and collapsed_array[-1] == "cDNA":
-                annotations['random_s']['Starts'].append(annotations['cDNA']['Starts'][1])
-                annotations['random_s']['Ends'].append(annotations['cDNA']['Ends'][1])
-                annotations['cDNA']['Starts'] = [annotations['cDNA']['Starts'][0]]
-                annotations['cDNA']['Ends'] = [annotations['cDNA']['Ends'][0]]
+                annotations["random_s"]["Starts"].append(annotations["cDNA"]["Starts"][1])
+                annotations["random_s"]["Ends"].append(annotations["cDNA"]["Ends"][1])
+                annotations["cDNA"]["Starts"] = [annotations["cDNA"]["Starts"][0]]
+                annotations["cDNA"]["Ends"] = [annotations["cDNA"]["Ends"][0]]
             elif order == "-" and collapsed_array[0] == "cDNA":
-                annotations['random_e']['Starts'].append(annotations['cDNA']['Starts'][0])
-                annotations['random_e']['Ends'].append(annotations['cDNA']['Ends'][0])
-                annotations['cDNA']['Starts'] = [annotations['cDNA']['Starts'][1]]
-                annotations['cDNA']['Ends'] = [annotations['cDNA']['Ends'][1]]
+                annotations["random_e"]["Starts"].append(annotations["cDNA"]["Starts"][0])
+                annotations["random_e"]["Ends"].append(annotations["cDNA"]["Ends"][0])
+                annotations["cDNA"]["Starts"] = [annotations["cDNA"]["Starts"][1]]
+                annotations["cDNA"]["Ends"] = [annotations["cDNA"]["Ends"][1]]
 
-        if len(annotations["cDNA"]['Starts']) == 3:
+        if len(annotations["cDNA"]["Starts"]) == 3:
             if order == "+":
-                annotations['random_s']['Starts'].append(annotations['cDNA']['Starts'][0])
-                annotations['random_s']['Ends'].append(annotations['cDNA']['Ends'][0])
-                annotations['random_e']['Starts'].append(annotations['cDNA']['Starts'][2])
-                annotations['random_e']['Ends'].append(annotations['cDNA']['Ends'][2])
-                annotations['cDNA']['Starts'] = [annotations['cDNA']['Starts'][1]]
-                annotations['cDNA']['Ends'] = [annotations['cDNA']['Ends'][1]]
+                annotations["random_s"]["Starts"].append(annotations["cDNA"]["Starts"][0])
+                annotations["random_s"]["Ends"].append(annotations["cDNA"]["Ends"][0])
+                annotations["random_e"]["Starts"].append(annotations["cDNA"]["Starts"][2])
+                annotations["random_e"]["Ends"].append(annotations["cDNA"]["Ends"][2])
+                annotations["cDNA"]["Starts"] = [annotations["cDNA"]["Starts"][1]]
+                annotations["cDNA"]["Ends"] = [annotations["cDNA"]["Ends"][1]]
             else:
-                annotations['random_e']['Starts'].append(annotations['cDNA']['Starts'][0])
-                annotations['random_e']['Ends'].append(annotations['cDNA']['Ends'][0])
-                annotations['random_s']['Starts'].append(annotations['cDNA']['Starts'][2])
-                annotations['random_s']['Ends'].append(annotations['cDNA']['Ends'][2])
-                annotations['cDNA']['Starts'] = [annotations['cDNA']['Starts'][1]]
-                annotations['cDNA']['Ends'] = [annotations['cDNA']['Ends'][1]]
+                annotations["random_e"]["Starts"].append(annotations["cDNA"]["Starts"][0])
+                annotations["random_e"]["Ends"].append(annotations["cDNA"]["Ends"][0])
+                annotations["random_s"]["Starts"].append(annotations["cDNA"]["Starts"][2])
+                annotations["random_s"]["Ends"].append(annotations["cDNA"]["Ends"][2])
+                annotations["cDNA"]["Starts"] = [annotations["cDNA"]["Starts"][1]]
+                annotations["cDNA"]["Ends"] = [annotations["cDNA"]["Ends"][1]]
 
     annotations["architecture"] = "valid" if order_match else "invalid"
-    annotations['read_length'] = str(read_length)
-    annotations['orientation'] = order
+    annotations["read_length"] = str(read_length)
+    annotations["orientation"] = order
     annotations["reason"] = reasons
 
     if annotations["architecture"] == "valid":
         for barcode in barcodes:
-            annotations[barcode]["Sequences"] = [read[int(annotations[barcode]['Starts'][0]):int(annotations[barcode]['Ends'][0])]]
+            annotations[barcode]["Sequences"] = [
+                read[int(annotations[barcode]["Starts"][0]) : int(annotations[barcode]["Ends"][0])]
+            ]
 
     return annotations
 
 
-def extract_annotated_full_length_seqs(new_data, predictions,
-                                       model_path_w_CRF,
-                                       read_lengths, label_binarizer,
-                                       seq_order, barcodes, n_jobs):
-
+def extract_annotated_full_length_seqs(
+    new_data, predictions, model_path_w_CRF, read_lengths, label_binarizer, seq_order, barcodes, n_jobs
+):
     data = [(new_data[i], predictions[i], read_lengths[i], seq_order) for i in range(len(new_data))]
 
     annotated_data = []
 
     if n_jobs == 1:
         for i in range(len(data)):
-            annotated_data.append(process_full_len_reads(data[i], barcodes,
-                                                         label_binarizer,
-                                                         model_path_w_CRF))
+            annotated_data.append(process_full_len_reads(data[i], barcodes, label_binarizer, model_path_w_CRF))
 
     elif n_jobs > 1:
         with mp.Pool(processes=n_jobs) as pool:
-            annotated_data = pool.starmap(process_full_len_reads, [(d, barcodes, label_binarizer, model_path_w_CRF) for d in data])
+            annotated_data = pool.starmap(
+                process_full_len_reads, [(d, barcodes, label_binarizer, model_path_w_CRF) for d in data]
+            )
             pool.close()
 
     del data

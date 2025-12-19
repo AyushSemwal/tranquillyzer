@@ -9,6 +9,7 @@ TODO: This entire module is currently set up under the premise that all GPUs
 will available will be used. When this gets changed, this module will need
 reworked accordingly.
 """
+
 import logging
 
 import tensorflow as tf
@@ -19,13 +20,16 @@ logger = logging.getLogger(__name__)
 # This is before any masking is done on GPUs to limit those available
 _GPUS = tf.config.list_physical_devices("GPU")
 
+
 def n_gpus():
     """Returns the total number of GPUs available to the user"""
     return len(_GPUS)
 
+
 def get_tensorflow_output():
     """Returns raw list as given by tf.config.list_physical_devices('GPU')"""
     return _GPUS
+
 
 def get_gpu_names_clean():
     """Returns a list of GPU names in the form 'GPU:i' where i is the index of
@@ -34,15 +38,18 @@ def get_gpu_names_clean():
     """
     return [f"GPU:{i}" for i, _ in enumerate(_GPUS)]
 
+
 def get_gpu_names_raw():
     """Returns a list of the GPU names as retrieved from
     tf.config.list_physical_devices('GPU')
     """
     return [f"{dev.name}" for dev in _GPUS]
 
+
 def gpus_to_visible_devices_string():
     """Provide the GPU numbers as a comma-separated string"""
     return ",".join(map(str, range(n_gpus())))
+
 
 def log_gpus_used():
     """Adds log message about which GPUs are used."""
@@ -53,12 +60,13 @@ def log_gpus_used():
     else:
         logger.info("No GPUs detected - running in CPU-only mode")
 
+
 def available_gpus():
     """Formats a nice table for available GPUs"""
     if n_gpus() > 0:
         # Column names in table
-        raw_header = 'Raw Name'
-        clean_header = 'Clean Name'
+        raw_header = "Raw Name"
+        clean_header = "Clean Name"
 
         # Maximum widths to properly pad table
         max_raw_width = max([len(name) for name in get_gpu_names_raw()])
@@ -70,12 +78,12 @@ def available_gpus():
             max_clean_width = len(clean_header)
 
         print(f"{n_gpus()} GPUs found! Tranquillyzer is able to run in GPU mode")
-        print("\n|", "-"*max_raw_width, "|", "-"*max_clean_width, "|", sep="-")
+        print("\n|", "-" * max_raw_width, "|", "-" * max_clean_width, "|", sep="-")
         print(f"| {raw_header:<{max_raw_width}} | {clean_header:<{max_clean_width}} |")
-        print("|", "-"*max_raw_width, "|", "-"*max_clean_width, "|", sep="-")
+        print("|", "-" * max_raw_width, "|", "-" * max_clean_width, "|", sep="-")
         for raw, clean in zip(get_gpu_names_raw(), get_gpu_names_clean()):
             print(f"| {raw:<{max_raw_width}} | {clean:<{max_clean_width}} |")
-        print("|", "-"*max_raw_width, "|", "-"*max_clean_width, "|", sep="-")
+        print("|", "-" * max_raw_width, "|", "-" * max_clean_width, "|", sep="-")
 
     else:
         print("No GPUs found! Tranquillyzer will run in CPU-only mode.")
