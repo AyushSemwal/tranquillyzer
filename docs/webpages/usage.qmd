@@ -174,6 +174,10 @@ We recommend verifying which model versions are present (via `availablemodels`) 
 Currently available trained models can be downloaded from [this  Dropbox link](https://www.dropbox.com/scl/fo/3lms8n97bnufzqa4ausv9/AGkO3EVrL1ZgctwEwTK1mEA?rlkey=47m69a6smwsisdznbwu3jvjpu&st=253al7s3&dl=0)
 and should be placed in the `models/` directory within the cloned Tranquillyzer repository.
 
+If `--include-barcode-quals` is set with FASTQ output, headers gain a `|BQ:` tag containing `segment:quality` pairs
+for the barcode segments listed in the fourth column of `seq_orders.tsv`, plus UMI qualities when present (e.g.,
+`|BQ:i7:<quals>;i5:<quals>;CBC:<quals>;UMI:<quals>`).
+
 ## Usage
 
 ```bash
@@ -217,6 +221,8 @@ Optional Arguments
 - `--bc-lv-threshold INTEGER`: Levenshtein distance threshold for barcode correction (default: 2)
 - `--threads INTEGER`: Number of CPU threads for barcode correction and demultiplexing (default: 12)
 - `--max-queue-size INTEGER`: Max number of Parquet files to queue for post-processing (default: 3)
+- `--include-barcode-quals`: When writing FASTQ, append base qualities for barcode segments (from `seq_orders.tsv`) into the FASTQ header
+- `--include-polya`: Append detected polyA tails to the emitted read sequence (and qualities in FASTQ)
 - `--help`: Print help message and exit
 
 # Alignment

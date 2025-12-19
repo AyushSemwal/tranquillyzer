@@ -335,6 +335,14 @@ def annotate_reads(
     bc_lv_threshold: int = typer.Option(2, help="lv-distance threshold for barcode correction"),
     threads: int = typer.Option(12, help="Number of CPU threads for barcode correction and demultiplexing"),
     max_queue_size: int = typer.Option(3, help="Max number of Parquet files to queue for post-processing"),
+    include_barcode_quals: bool = typer.Option(False, help=(
+        "When writing FASTQ, append base qualities for barcode segments "
+        "(from seq_orders.tsv) into the FASTQ header"
+        )),
+    include_polya: bool = typer.Option(
+        False,
+        help="Append detected polyA tails to output sequences (includes qualities in FASTQ)",
+    ),
 ):
     """
     End-to-end annotation, barcode correction, demultiplexing, and QC plots.
@@ -375,11 +383,13 @@ def annotate_reads(
         RuntimeError: Propagated exceptions from worker processes.
     """
     from wrappers.annotate_reads_wrap import annotate_reads_wrap
+
     annotate_reads_wrap(output_dir, whitelist_file, output_fmt, 
                         model_name, model_type, seq_order_file,
                         chunk_size, gpu_mem, target_tokens,
                         vram_headroom, min_batch_size, max_batch_size,
-                        bc_lv_threshold, threads, max_queue_size)
+                        bc_lv_threshold, threads, max_queue_size,
+                        include_barcode_quals, include_polya)
 
 # ======================================
 # align inserts to the reference genome
