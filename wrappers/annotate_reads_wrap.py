@@ -105,18 +105,48 @@ def _empty_results_queue(result_queue, workers, max_idle_time=60):
 
     logger.info("Results queue cleared. Commence shutdown due to error")
 
-def annotate_reads_wrap(output_dir, whitelist_file, output_fmt,
-                        model_name, model_type, seq_order_file,
-                        chunk_size, gpu_mem, target_tokens,
-                        vram_headroom, min_batch_size, max_batch_size,
-                        bc_lv_threshold, threads, max_queue_size):
-    (os, gc, sys, resource, pickle, mp, Manager,
-     defaultdict, psutil, pl, FileLock, pd,
-     model_predictions, post_process_reads,
-     seq_orders, estimate_average_read_length_from_bin,
-     calculate_total_rows, generate_barcodes_stats_pdf,
-     generate_demux_stats_pdf, plot_read_n_cDNA_lengths,
-     convert_tsv_to_parquet, log_gpus_used) = load_libs()
+def annotate_reads_wrap(
+    output_dir,
+    whitelist_file,
+    output_fmt,
+    model_name,
+    model_type,
+    seq_order_file,
+    chunk_size,
+    gpu_mem,
+    target_tokens,
+    vram_headroom,
+    min_batch_size,
+    max_batch_size,
+    bc_lv_threshold,
+    threads,
+    max_queue_size,
+    include_barcode_quals,
+    include_polya,
+):
+    (
+        os,
+        gc,
+        sys,
+        resource,
+        pickle,
+        mp,
+        Manager,
+        defaultdict,
+        psutil,
+        pl,
+        FileLock,
+        pd,
+        model_predictions,
+        post_process_reads,
+        seq_orders,
+        estimate_average_read_length_from_bin,
+        calculate_total_rows,
+        generate_barcodes_stats_pdf,
+        generate_demux_stats_pdf,
+        plot_read_n_cDNA_lengths,
+        convert_tsv_to_parquet,
+    ) = load_libs()
 
     start = time.time()
 
@@ -135,6 +165,23 @@ def annotate_reads_wrap(output_dir, whitelist_file, output_fmt,
     if seq_order_file is None:
         seq_order_file = os.path.join(utils_dir, "seq_orders.tsv")
 
+    def _available_models(seq_orders_path):
+        """Return list of model names defined in seq_orders.tsv (best-effort)."""
+        models = []
+        try:
+            with open(seq_orders_path, "r") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    model_id = (
+                        line.strip().replace("'", "").replace('"', "").split("\t")[0]
+                    ).strip()
+                    if model_id:
+                        models.append(model_id)
+        except Exception:
+            pass
+        return models
+
     # TODO: model_path and model_path_w_CRF can probably be moved into the model if-statement
     #       This may have to wait until post_process_worker has been moved out of this function though
     model_path_w_CRF = None
@@ -145,8 +192,31 @@ def annotate_reads_wrap(output_dir, whitelist_file, output_fmt,
         with open(f"{models_dir}/{model_name}_lbl_bin.pkl", "rb") as f:
             label_binarizer = pickle.load(f)
 
-    seq_order, sequences, barcodes, UMIs, strand = seq_orders(seq_order_file, model_name)
-    whitelist_df = pd.read_csv(whitelist_file, sep='\t')
+    try:
+        seq_order, sequences, barcodes, UMIs, strand = seq_orders(
+            seq_order_file, model_name
+        )
+    except Exception as e:
+        available = _available_models(seq_order_file)
+        suffix = (
+            f" Available models: {', '.join(available)}"
+            if available
+            else " No models found in seq_orders file."
+        )
+        raise ValueError(
+            f"Model '{model_name}' not found in seq_orders file: {seq_order_file}.{suffix}"
+        ) from e
+    if not seq_order:
+        available = _available_models(seq_order_file)
+        suffix = (
+            f" Available models: {', '.join(available)}"
+            if available
+            else " No models found in seq_orders file."
+        )
+        raise ValueError(
+            f"Model '{model_name}' not found in seq_orders file: {seq_order_file}.{suffix}"
+        )
+    whitelist_df = pd.read_csv(whitelist_file, sep="\t")
     num_labels = len(seq_order)
 
     base_folder_path = os.path.join(output_dir, "full_length_pp_fa")
@@ -208,7 +278,16 @@ def annotate_reads_wrap(output_dir, whitelist_file, output_fmt,
     match_type_counter = manager.dict()
     cell_id_counter = manager.dict()
 
-    def post_process_worker(task_queue, strand, output_fmt, count, header_track, result_queue):
+    def post_process_worker(
+        task_queue,
+        strand,
+        output_fmt,
+        count,
+        header_track,
+        result_queue,
+        include_barcode_quals,
+        include_polya,
+    ):
         """Worker function for processing reads and returning results."""
         while True:
             try:
@@ -265,7 +344,10 @@ def annotate_reads_wrap(output_dir, whitelist_file, output_fmt,
                     local_cell_counter, demuxed_fasta,
                     demuxed_fasta_lock,
                     ambiguous_fasta,
-                    ambiguous_fasta_lock, threads
+                    ambiguous_fasta_lock,
+                    threads,
+                    include_barcode_quals,
+                    include_polya,
                 )
 
                 if result:
@@ -297,11 +379,22 @@ def annotate_reads_wrap(output_dir, whitelist_file, output_fmt,
 
         logger.info(f"[Memory] RSS: {psutil.Process().memory_info().rss / 1e6:.2f} MB")
 
-        workers = [mp.Process(target=post_process_worker,
-                              args=(task_queue, strand,
-                                    output_fmt, count,
-                                    header_track,
-                                    result_queue)) for _ in range(num_workers)]
+        workers = [
+            mp.Process(
+                target=post_process_worker,
+                args=(
+                    task_queue,
+                    strand,
+                    output_fmt,
+                    count,
+                    header_track,
+                    result_queue,
+                    include_barcode_quals,
+                    include_polya,
+                ),
+            )
+            for _ in range(num_workers)
+        ]
 
         logger.info(f"Number of workers = {len(workers)}")
 
@@ -381,11 +474,22 @@ def annotate_reads_wrap(output_dir, whitelist_file, output_fmt,
             with header_track.get_lock():
                 header_track.value = 0
 
-            workers = [mp.Process(target=post_process_worker,
-                                  args=(task_queue, strand,
-                                        output_fmt, count,
-                                        header_track,
-                                        result_queue)) for _ in range(num_workers)]
+            workers = [
+                mp.Process(
+                    target=post_process_worker,
+                    args=(
+                        task_queue,
+                        strand,
+                        output_fmt,
+                        count,
+                        header_track,
+                        result_queue,
+                        include_barcode_quals,
+                        include_polya,
+                    ),
+                )
+                for _ in range(num_workers)
+            ]
 
             for worker in workers:
                 worker.start()
@@ -438,11 +542,22 @@ def annotate_reads_wrap(output_dir, whitelist_file, output_fmt,
 
         pass_num = 1
 
-        workers = [mp.Process(target=post_process_worker,
-                              args=(task_queue, strand,
-                                    output_fmt, count,
-                                    header_track,
-                                    result_queue)) for _ in range(num_workers)]
+        workers = [
+            mp.Process(
+                target=post_process_worker,
+                args=(
+                    task_queue,
+                    strand,
+                    output_fmt,
+                    count,
+                    header_track,
+                    result_queue,
+                    include_barcode_quals,
+                    include_polya,
+                ),
+            )
+            for _ in range(num_workers)
+        ]
 
         for worker in workers:
             worker.start()

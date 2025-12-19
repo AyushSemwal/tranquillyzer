@@ -92,9 +92,18 @@ def write_reads_to_fasta(batch_reads, output_fmt, demuxed_fasta,
         fasta_file.close()
 
 
-def process_row(row, strand, barcode_columns,
-                whitelist_dict, whitelist_df,
-                threshold, output_dir, output_fmt):
+def process_row(
+    row,
+    strand,
+    barcode_columns,
+    whitelist_dict,
+    whitelist_df,
+    threshold,
+    output_dir,
+    output_fmt,
+    include_barcode_quals_in_header,
+    include_polya_in_output,
+):
     result = {
         'ReadName': row['ReadName'],
         'read_length': row['read_length'],
@@ -155,42 +164,151 @@ def process_row(row, strand, barcode_columns,
 
     corrected_barcode_seqs_str = whitelist_dict["cell_ids"][cell_id] if cell_id != "ambiguous" else "ambiguous"
 
-    cDNA_sequence = row['read'][int(row['cDNA_Starts']):int(row['cDNA_Ends'])]
+    cDNA_start = int(row['cDNA_Starts'])
+    cDNA_end = int(row['cDNA_Ends'])
+    cDNA_sequence = row['read'][cDNA_start:cDNA_end]
     umi_sequence = row['read'][int(row['UMI_Starts']):int(row['UMI_Ends'])]
+    cDNA_quality = row['base_qualities'][cDNA_start:cDNA_end] if output_fmt == 'fastq' else None
+
+    polya_seq = None
+    polya_qual = None
+    if include_polya_in_output and output_fmt in {'fastq', 'fasta'}:
+        polya_start_token = row.get('polyA_Starts') or row.get('polyT_Starts')
+        polya_end_token = row.get('polyA_Ends') or row.get('polyT_Ends')
+
+        try:
+            polya_start = (
+                int(float(str(polya_start_token).split(',')[0].strip()))
+                if polya_start_token not in (None, '', 'None')
+                else None
+            )
+            polya_end = (
+                int(float(str(polya_end_token).split(',')[0].strip()))
+                if polya_end_token not in (None, '', 'None')
+                else None
+            )
+            if polya_start is not None and polya_end is not None and polya_end > polya_start:
+                polya_seq = row['read'][polya_start:polya_end]
+                if output_fmt == 'fastq' and row.get('base_qualities'):
+                    polya_qual = row['base_qualities'][polya_start:polya_end]
+        except (ValueError, TypeError):
+            polya_seq = None
+            polya_qual = None
 
     if orientation == "+" and strand == "fwd":
         pass
     elif orientation == "-" and strand == "fwd":
         cDNA_sequence = reverse_complement(cDNA_sequence)
         umi_sequence = reverse_complement(umi_sequence)
+        if polya_seq is not None:
+            polya_seq = reverse_complement(polya_seq)
     elif orientation == "+" and strand == "rev":
         cDNA_sequence = reverse_complement(cDNA_sequence)
         umi_sequence = reverse_complement(umi_sequence)
+        if polya_seq is not None:
+            polya_seq = reverse_complement(polya_seq)
     elif orientation == "-" and strand == "rev":
         pass
     else:
         pass
 
     batch_reads = defaultdict(list)
+    barcode_qual_suffix = ""
+    if include_barcode_quals_in_header and output_fmt == "fastq":
+        base_q = row.get("base_qualities", "")
+        qual_tokens = []
+        for barcode_column in barcode_columns:
+            try:
+                start_token = str(row[f"{barcode_column}_Starts"]).split(",")[0].strip()
+                end_token = str(row[f"{barcode_column}_Ends"]).split(",")[0].strip()
+                if start_token and end_token:
+                    start = int(float(start_token))
+                    end = int(float(end_token))
+                    if base_q and end > start:
+                        qual_slice = base_q[start:end]
+                        qual_tokens.append(f"{barcode_column}:{qual_slice}")
+            except (KeyError, ValueError, TypeError):
+                continue
+
+        # Add UMI qualities if present
+        try:
+            umi_start = int(float(str(row.get("UMI_Starts", "")).split(",")[0].strip()))
+            umi_end = int(float(str(row.get("UMI_Ends", "")).split(",")[0].strip()))
+            if base_q and umi_end > umi_start:
+                umi_slice = base_q[umi_start:umi_end]
+                if umi_slice:
+                    qual_tokens.append(f"UMI:{umi_slice}")
+        except (ValueError, TypeError):
+            pass
+
+        if qual_tokens:
+            barcode_qual_suffix = f"|BQ:{';'.join(qual_tokens)}"
+
+    sequence_out = cDNA_sequence
+    quality_out = cDNA_quality
+
+    if include_polya_in_output and polya_seq is not None:
+        if output_fmt == "fastq" and polya_qual is None:
+            # Skip appending polyA if qualities are unavailable in FASTQ mode to avoid length mismatch
+            pass
+        else:
+            sequence_out = cDNA_sequence + polya_seq
+            if output_fmt == "fastq" and polya_qual is not None:
+                quality_out = (quality_out or "") + polya_qual
+
     if output_fmt == "fasta":
-         batch_reads[corrected_barcode_seqs_str].append(
-            (f">{row['ReadName']}_{corrected_barcode_seqs_str}_{umi_sequence} cell_id:{cell_id}|Barcodes:{corrected_barcodes_str}|UMI:{umi_sequence}|orientation:{orientation}",
-            cDNA_sequence)
-    )
+        batch_reads[corrected_barcode_seqs_str].append(
+            (f">{row['ReadName']}_{corrected_barcode_seqs_str}_{umi_sequence} "
+             f"cell_id:{cell_id}|Barcodes:{corrected_barcodes_str}|UMI:{umi_sequence}|orientation:{orientation}",
+             sequence_out)
+        )
     elif output_fmt == "fastq":
-         batch_reads[corrected_barcode_seqs_str].append(
-            (f"@{row['ReadName']}_{corrected_barcode_seqs_str}_{umi_sequence} cell_id:{cell_id}|Barcodes:{corrected_barcodes_str}|UMI:{umi_sequence}|orientation:{orientation}",
-            cDNA_sequence, row['base_qualities'][int(row['cDNA_Starts']):int(row['cDNA_Ends'])])
+        header = (
+            f"@{row['ReadName']}_{corrected_barcode_seqs_str}_{umi_sequence} "
+            f"cell_id:{cell_id}|Barcodes:{corrected_barcodes_str}|UMI:{umi_sequence}|orientation:{orientation}"
+            f"{barcode_qual_suffix}"
+        )
+        batch_reads[corrected_barcode_seqs_str].append(
+            (header,
+             sequence_out,
+             quality_out if quality_out is not None
+             else row['base_qualities'][cDNA_start:cDNA_end])
         )
     return result, local_match_counts, local_cell_counts, batch_reads
 
 
-def bc_n_demultiplex(chunk, strand, barcode_columns, whitelist_dict,
-                     whitelist_df, threshold, output_dir,
-                     output_fmt, demuxed_fasta, demuxed_fasta_lock,
-                     ambiguous_fasta, ambiguous_fasta_lock,
-                     num_cores):
-    args = [(row, strand, barcode_columns, whitelist_dict, whitelist_df, threshold, output_dir, output_fmt) for _, row in chunk.iterrows()]
+def bc_n_demultiplex(
+    chunk,
+    strand,
+    barcode_columns,
+    whitelist_dict,
+    whitelist_df,
+    threshold,
+    output_dir,
+    output_fmt,
+    demuxed_fasta,
+    demuxed_fasta_lock,
+    ambiguous_fasta,
+    ambiguous_fasta_lock,
+    num_cores,
+    include_barcode_quals_in_header=False,
+    include_polya_in_output=False,
+):
+    args = [
+        (
+            row,
+            strand,
+            barcode_columns,
+            whitelist_dict,
+            whitelist_df,
+            threshold,
+            output_dir,
+            output_fmt,
+            include_barcode_quals_in_header,
+            include_polya_in_output,
+        )
+        for _, row in chunk.iterrows()
+    ]
     batch_reads = defaultdict(list)
     results = []
 
