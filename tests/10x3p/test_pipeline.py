@@ -39,130 +39,169 @@ def run_cmd(cmd, timeout=900):
 
 @pytest.mark.order(1)
 def test_preprocess_wo_base_qual():
-    run_cmd([
-        "tranquillyzer",
-        "preprocess",
-        RAW_INPUT_DIR,
-        OUT_DIR,
-        "--threads", THREADS,
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "preprocess",
+            RAW_INPUT_DIR,
+            OUT_DIR,
+            "--threads",
+            THREADS,
+        ]
+    )
 
 
 @pytest.mark.order(2)
 def test_readlengthdist():
-    run_cmd([
-        "tranquillyzer",
-        "readlengthdist",
-        OUT_DIR,
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "readlengthdist",
+            OUT_DIR,
+        ]
+    )
 
 
 @pytest.mark.order(3)
 def test_visualize():
-    run_cmd([
-        "tranquillyzer",
-        "visualize",
-        OUT_DIR,
-        "--output-file",
-        "test_visualization",
-        "--model-type", "CRF",
-        "--num-reads",
-        "10",
-        "--threads",
-        THREADS
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "visualize",
+            OUT_DIR,
+            "--output-file",
+            "test_visualization",
+            "--model-type",
+            "CRF",
+            "--num-reads",
+            "10",
+            "--threads",
+            THREADS,
+        ]
+    )
 
 
 @pytest.mark.order(4)
 def test_annotate_reads():
-    run_cmd([
-        "tranquillyzer",
-        "annotate-reads",
-        OUT_DIR,
-        BARCODES,
-        "--model-type", "CRF",
-        "--chunk-size", 100000,
-        "--threads", THREADS,
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "annotate-reads",
+            OUT_DIR,
+            BARCODES,
+            "--model-type",
+            "CRF",
+            "--chunk-size",
+            100000,
+            "--threads",
+            THREADS,
+        ]
+    )
 
 
 @pytest.mark.order(5)
 def test_align():
-    run_cmd([
-        "tranquillyzer",
-        "align",
-        OUT_DIR,
-        REF_FASTA,
-        OUT_DIR,
-        "--preset", "splice",
-        "--threads", THREADS,
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "align",
+            OUT_DIR,
+            REF_FASTA,
+            OUT_DIR,
+            "--preset",
+            "splice",
+            "--threads",
+            THREADS,
+        ]
+    )
 
 
 @pytest.mark.order(6)
 def test_dedup():
-    run_cmd([
-        "tranquillyzer",
-        "dedup",
-        OUT_DIR,
-        "--lv-threshold", 1,
-        "--threads", THREADS,
-        "--per-cell",
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "dedup",
+            OUT_DIR,
+            "--lv-threshold",
+            1,
+            "--threads",
+            THREADS,
+            "--per-cell",
+        ]
+    )
 
 
 @pytest.mark.order(7)
 def test_simulate_data():
-    run_cmd([
-        "tranquillyzer",
-        "simulate-data",
-        "10x3p_sc_ont",
-        SIM_DIR,
-        "--num-reads",
-        1000,
-        "--threads",
-        THREADS,
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "simulate-data",
+            "10x3p_sc_ont",
+            SIM_DIR,
+            "--num-reads",
+            1000,
+            "--threads",
+            THREADS,
+        ]
+    )
 
 
 @pytest.mark.order(8)
 def test_available_models():
-    run_cmd([
-        "tranquillyzer",
-        "availablemodels",
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "availablemodels",
+        ]
+    )
+
 
 @pytest.mark.order(9)
 def test_preprocess_w_base_qual():
-    run_cmd([
-        "tranquillyzer",
-        "preprocess",
-        RAW_INPUT_DIR,
-        OUT_DIR,
-        "--output-base-qual",
-        "--threads", THREADS,
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "preprocess",
+            RAW_INPUT_DIR,
+            OUT_DIR,
+            "--output-base-qual",
+            "--threads",
+            THREADS,
+        ]
+    )
+
 
 @pytest.mark.order(10)
 def test_annotate_reads_w_base_qual():
-    run_cmd([
-        "tranquillyzer",
-        "annotate-reads",
-        OUT_DIR,
-        BARCODES,
-        "--output-fmt", "fastq",
-        "--model-type", "CRF",
-        "--chunk-size", 100000,
-        "--threads", THREADS,
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "annotate-reads",
+            OUT_DIR,
+            BARCODES,
+            "--output-fmt",
+            "fastq",
+            "--model-type",
+            "CRF",
+            "--chunk-size",
+            100000,
+            "--threads",
+            THREADS,
+        ]
+    )
+
 
 @pytest.mark.order(11)
 def test_train_model():
-    run_cmd([
-        "tranquillyzer",
-        "train-model",
-        "10x3p_sc_ont",
-        SIM_DIR,
-        "--threads",
-        THREADS,
-    ])
+    run_cmd(
+        [
+            "tranquillyzer",
+            "train-model",
+            "10x3p_sc_ont",
+            SIM_DIR,
+            "--threads",
+            THREADS,
+        ]
+    )
