@@ -1,3 +1,4 @@
+from typing import Optional
 import typer
 from typing_extensions import Annotated
 import logging
@@ -520,6 +521,119 @@ def dedup(
     from wrappers.dedup_wrap import dedup_wrap
 
     dedup_wrap(input_dir, lv_threshold, stranded, per_cell, threads)
+
+# ==============================
+# Split bam per cell
+# ==============================
+
+
+@app.command(no_args_is_help=True)
+def split_bam(
+    input_bam: str,
+    out_dir: Optional[str] = typer.Option(
+        None,
+        help=(
+            "Output directory for per-cell BAMs. "
+            "If not provided, defaults to <input_bam_dir>/split_bams."
+        ),
+    ),
+    bucket_threads: Optional[int] = typer.Option(
+        1,
+        help="Number of worker processes for Stage 1 (per-contig bucketing). "
+        "Default: all CPUs (capped by #contigs).",
+    ),
+    merge_threads: Optional[int] = typer.Option(
+        1,
+        help="Number of worker processes for Stage 2 (per-bucket merge/split). "
+        "Default: <=8 (I/O heavy).",
+    ),
+    nbuckets: int = typer.Option(
+        256,
+        help="Number of hash buckets to partition CBs. Higher = fewer CBs per "
+        "bucket but more temp files. Typical: 128/256/512.",
+    ),
+    tag: str = typer.Option(
+        "CB",
+        help="BAM tag holding the cell barcode (e.g., CB). "
+        "Reads missing this tag are skipped.",
+    ),
+    max_open_cb_writers: int = typer.Option(
+        128,
+        help="Max number of per-CB output BAM writers kept open per process "
+        "(LRU cache). Helps avoid 'too many open files'.",
+    ),
+    filter_secondary: bool = typer.Option(
+        False,
+        help="Drop secondary alignments (is_secondary).",
+    ),
+    filter_supplementary: bool = typer.Option(
+        False,
+        help="Drop supplementary alignments (is_supplementary).",
+    ),
+    filter_unmapped: bool = typer.Option(
+        True,
+        help="Drop unmapped reads (is_unmapped).",
+    ),
+    filter_duplicates: bool = typer.Option(
+        True,
+        help="Drop PCR/optical duplicates (is_duplicate).",
+    ),
+    min_mapq: Optional[int] = typer.Option(
+        0,
+        help="Minimum MAPQ to keep an alignment. If not set, "
+        "no MAPQ filter is applied.",
+    ),
+    keep_tmp: bool = typer.Option(
+        False,
+        help="Keep temporary bucket BAM parts (for debugging).",
+    ),
+    index_outputs: bool = typer.Option(
+        False,
+        help="Create BAM index (.bai) for each per-CB BAM output.",
+    ),
+    prefer_csi_index: bool = typer.Option(
+        False,
+        help="Prefer creating CSI index for the (possibly sorted) "
+        "input BAM if indexing is needed.",
+    ),
+):
+    """
+    Split a coordinate-sorted BAM into one BAM per cell barcode tag (default: CB).
+
+    Uses a scalable two-stage strategy:
+      1) Parallel by contig: write reads into a fixed number of hash buckets.
+      2) Parallel by bucket: write final per-CB BAMs with bounded open file handles.
+
+    Output directory defaults to <input_bam_dir>/split_bams if --out-dir is not provided.
+    """
+    from wrappers.split_bam_wrap import split_bam_wrap
+
+    if not os.path.exists(input_bam):
+        raise typer.BadParameter(f"Input BAM not found: {input_bam}")
+
+    if out_dir is None:
+        in_dir = os.path.dirname(os.path.abspath(input_bam)) or "."
+        out_dir = os.path.join(in_dir, "split_bams")
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    split_bam_wrap(
+        input_bam=input_bam,
+        out_dir=out_dir,
+        bucket_threads=bucket_threads,
+        merge_threads=merge_threads,
+        nbuckets=nbuckets,
+        tag=tag,
+        max_open_cb_writers=max_open_cb_writers,
+        filter_secondary=filter_secondary,
+        filter_supplementary=filter_supplementary,
+        filter_unmapped=filter_unmapped,
+        filter_duplicates=filter_duplicates,
+        min_mapq=min_mapq,
+        keep_tmp=keep_tmp,
+        index_outputs=index_outputs,
+        prefer_csi_index=prefer_csi_index,
+    )
 
 
 # ===========================
