@@ -5,7 +5,6 @@ import logging
 import numpy as np
 import pandas as pd
 import polars as pl
-import seaborn as sns
 import tensorflow as tf
 from filelock import FileLock
 import matplotlib.pyplot as plt

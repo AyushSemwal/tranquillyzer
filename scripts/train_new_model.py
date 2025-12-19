@@ -15,18 +15,16 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.losses import CategoricalCrossentropy
 from tensorflow.keras.optimizers.legacy import Adam
-import pickle
 import numpy as np
 
-from sklearn.preprocessing import LabelBinarizer
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.models import Model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import tensorflow_addons as tfa
 from tf2crf import CRF, ModelWithCRFLoss
 
-import os, tensorflow as tf
+import os
+import tensorflow as tf
 from scripts.available_gpus import gpus_to_visible_devices_string
 
 # TODO: Will need to think about how to handle this when users are able to pick

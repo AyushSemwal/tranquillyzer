@@ -1,5 +1,4 @@
 import logging
-import os
 import gc
 import tensorflow as tf
 import numpy as np
@@ -7,7 +6,6 @@ import pandas as pd
 from tqdm import tqdm
 from numba import njit
 from rapidfuzz import process
-from filelock import FileLock
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from collections import defaultdict
@@ -364,12 +362,12 @@ def generate_barcodes_stats_pdf(cumulative_barcodes_stats, barcode_columns, pdf_
             fig, axs = plt.subplots(1, 2, figsize=(14, 6))
 
             axs[0].bar(count_data.index, count_data.values, color="skyblue")
-            axs[0].set_xlabel(f"Number of Matches")
+            axs[0].set_xlabel("Number of Matches")
             axs[0].set_ylabel("Frequency")
             axs[0].set_title(f"{barcode_column} - Number of Matches")
 
             axs[1].bar(min_dist_data.index, min_dist_data.values, color="lightgreen")
-            axs[1].set_xlabel(f"Minimum Distance")
+            axs[1].set_xlabel("Minimum Distance")
             axs[1].set_ylabel("Frequency")
             axs[1].set_title(f"{barcode_column} - Minimum Distance")
 

@@ -27,7 +27,7 @@ def load_libs():
         DynamicPaddingDataGenerator,
         ont_read_annotator,
     )
-    from scripts.trained_models import trained_models, seq_orders
+    from scripts.trained_models import seq_orders
     from scripts.simulate_training_data import generate_training_reads
     from scripts.annotate_new_data import (
         annotate_new_data_parallel,
