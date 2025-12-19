@@ -103,9 +103,9 @@ def generate_segment(segment_type, segment_pattern, length_range, transcriptome_
 def generate_valid_read(segments_order, segments_patterns, length_range, transcriptome_records):
     read_segments, label_segments = [], []
     for seg_type, seg_pattern in zip(segments_order, segments_patterns):
-        s, l = generate_segment(seg_type, seg_pattern, length_range, transcriptome_records)
+        s, labs = generate_segment(seg_type, seg_pattern, length_range, transcriptome_records)
         read_segments.append(s)
-        label_segments.append(l)
+        label_segments.append(labs)
     return "".join(read_segments), [lbl for seg_lbls in label_segments for lbl in seg_lbls]
 
 
