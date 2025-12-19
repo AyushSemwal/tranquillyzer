@@ -36,7 +36,6 @@ def visualize_sequence_annotations(
     # Determine header content and split it into multiple lines if it exceeds the header_max_length
     header_text = f"{read_name} (Architecture: {architecture}, Reason: {reason})"
     wrapped_header = fill(header_text, width=header_max_length)
-    header_lines = wrapped_header.count("\n") + 1
 
     figures = []
 
