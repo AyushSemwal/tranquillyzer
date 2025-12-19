@@ -140,8 +140,8 @@ def train_model_wrap(
 
     with open(f"{output_dir}/simulated_data/reads.pkl", "rb") as r:
         reads = pickle.load(r)
-    with open(f"{output_dir}/simulated_data/labels.pkl", "rb") as l:
-        labels = pickle.load(l)
+    with open(f"{output_dir}/simulated_data/labels.pkl", "rb") as labs:
+        labels = pickle.load(labs)
 
     df = pd.read_csv(param_file, sep="\t")
 
