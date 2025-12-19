@@ -41,3 +41,7 @@ tranquillyzer.egg-info/
 .coverage
 coverage.xml
 htmlcov/
+
+# Quarto output for documentation site
+/.quarto/
+/_site/
