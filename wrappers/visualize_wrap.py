@@ -135,7 +135,6 @@ def visualize_wrap(
     index_file_path = os.path.join(output_dir, "full_length_pp_fa/read_index.parquet")
 
     os.makedirs(f"{output_dir}/plots", exist_ok=True)
-    folder_path = os.path.join(output_dir, "full_length_pp_fa")
     pdf_filename = f"{output_dir}/plots/{output_file}.pdf"
 
     selected_reads = []
