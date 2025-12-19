@@ -171,6 +171,7 @@ def annotate_reads_wrap(
         generate_demux_stats_pdf,
         plot_read_n_cDNA_lengths,
         convert_tsv_to_parquet,
+        log_gpus_used,
     ) = load_libs()
 
     start = time.time()
