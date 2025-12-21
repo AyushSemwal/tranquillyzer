@@ -134,6 +134,22 @@ def test_dedup():
 
 
 @pytest.mark.order(7)
+def test_split_bam():
+    run_cmd(
+        [
+            "tranquillyzer",
+            "split-bam",
+            f'{OUT_DIR}/aligned_files/demuxed_aligned_dup_marked.bam',
+            "--bucket-threads", 2,
+            "--merge-threads", 2,
+            "--max-open-cb-writers", 500,
+            "--filter-secondary",
+            "--filter-supplementary",
+        ]
+    )
+
+
+@pytest.mark.order(8)
 def test_simulate_data():
     run_cmd(
         [
@@ -149,7 +165,7 @@ def test_simulate_data():
     )
 
 
-@pytest.mark.order(8)
+@pytest.mark.order(9)
 def test_available_models():
     run_cmd(
         [
@@ -159,7 +175,7 @@ def test_available_models():
     )
 
 
-@pytest.mark.order(9)
+@pytest.mark.order(10)
 def test_preprocess_w_base_qual():
     run_cmd(
         [
@@ -174,7 +190,7 @@ def test_preprocess_w_base_qual():
     )
 
 
-@pytest.mark.order(10)
+@pytest.mark.order(11)
 def test_annotate_reads_w_base_qual():
     run_cmd(
         [
@@ -194,7 +210,7 @@ def test_annotate_reads_w_base_qual():
     )
 
 
-@pytest.mark.order(11)
+@pytest.mark.order(12)
 def test_train_model():
     run_cmd(
         [
@@ -204,5 +220,14 @@ def test_train_model():
             SIM_DIR,
             "--threads",
             THREADS,
+        ]
+    )
+
+@pytest.mark.order(13)
+def test_available_gpus():
+    run_cmd(
+        [
+            "tranquillyzer",
+            "available-gpus",
         ]
     )
