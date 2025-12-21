@@ -23,13 +23,11 @@ jobs:
           miniforge-variant: Mambaforge
           miniforge-version: 22.9.0-2
           use-mamba: true
-          python-version: "3.10"
+          python-version: "3.10.12"
 
       - name: Install Python packages (extra)
         shell: bash -l {0}
         run: |
-          pip install "tensorflow[and-cuda]==2.15" --extra-index-url https://pypi.nvidia.com
-          pip install tensorflow-addons
           pip install -e .
           pip install pytest pytest-order pytest-cov
 
