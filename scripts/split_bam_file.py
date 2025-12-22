@@ -454,8 +454,14 @@ def split_bam_file(
         for ref in ref_order
     ]
 
-    with Pool(procs1) as pool:
-        stage1_results = pool.map(_process_ref_to_buckets, args1)
+    if procs1 > 1:
+        with Pool(procs1) as pool:
+            stage1_results = pool.map(_process_ref_to_buckets, args1)
+    else:
+        stage1_results = [
+            _process_ref_to_buckets(args)
+            for args in args1
+    ]
 
     used_buckets = set()
     stage1_stats = []
@@ -515,10 +521,17 @@ def split_bam_file(
         for bid in used_buckets
     ]
 
-    with Pool(procs2) as pool:
-        stage2_stats_list = pool.starmap(
-            _build_cb_bams_from_bucket, stage2_args
-        )
+    if procs2 > 1:
+        with Pool(procs2) as pool:
+            stage2_stats_list = pool.starmap(
+                _build_cb_bams_from_bucket,
+                stage2_args
+                )
+    else:
+        stage2_stats_list = [
+            _build_cb_bams_from_bucket(*arg)
+            for arg in stage2_args
+    ]
 
     # Summarize stage2
     total_bucket_parts = sum(s["parts_seen"] for s in stage2_stats_list)
