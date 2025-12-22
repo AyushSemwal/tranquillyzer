@@ -389,26 +389,43 @@ def deduplication_parallel(
 
     # Process per region
     work = []
-    with mp.Pool(processes=threads, maxtasksperchild=32) as pool:
+    if threads > 1:
+        work = []
+        with mp.Pool(processes=threads, maxtasksperchild=32) as pool:
+            for region in regions:
+                temp_path = f"{output_bam}.{region}.tmp.bam"
+                work.append(
+                    pool.apply_async(
+                        process_region,
+                        (
+                            sorted_bam,
+                            temp_path,
+                            region,
+                            umi_ld,
+                            per_cell,
+                            stranded,
+                            bgzf_threads_per_writer,
+                        ),
+                    )
+                )
+
+            for w in work:
+                region, path = w.get()
+                temp_paths[region] = path
+    else:
+        # Serial path (no Pool)
         for region in regions:
             temp_path = f"{output_bam}.{region}.tmp.bam"
-            work.append(
-                pool.apply_async(
-                    process_region,
-                    (
-                        sorted_bam,
-                        temp_path,
-                        region,
-                        umi_ld,
-                        per_cell,
-                        stranded,
-                        bgzf_threads_per_writer,
-                    ),
-                )
+            region_out, path_out = process_region(
+                sorted_bam,
+                temp_path,
+                region,
+                umi_ld,
+                per_cell,
+                stranded,
+                bgzf_threads_per_writer,
             )
-        for w in work:
-            region, path = w.get()
-            temp_paths[region] = path
+            temp_paths[region_out] = path_out
 
     # Merge in @SQ order
     ordered_paths = [temp_paths[r] for r in regions if r in temp_paths]

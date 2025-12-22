@@ -26,15 +26,29 @@ def dedup_wrap(input_dir, lv_threshold, stranded, per_cell, threads):
     if not os.path.exists(out_bam):
         raise FileNotFoundError(f"Expected output BAM not found: {out_bam}")
 
+    # Check BAM sort order and sort if needed before indexing
+    so = None
     try:
         with pysam.AlignmentFile(out_bam, "rb") as bam:
             so = (bam.header.get("HD") or {}).get("SO")
     except Exception as e:
         logger.warning(f"Could not read BAM header to check sort order ({e}). Assuming unsorted.")
-        so = None
 
-    logger.info("Indexing duplicate marked BAM file")
-    subprocess.run(f"samtools index -@ {threads} {out_bam}", shell=True, check=True)
+    # Use `so` so it's not "unused" + ensure correct indexing behavior
+    needs_sort = (so is None) or (str(so).lower() != "coordinate")
+    if needs_sort:
+        logger.info(f"BAM sort order is {so!r}; sorting to coordinate order before indexing.")
+        sorted_bam = out_bam.replace(".bam", ".sorted.bam")
+        subprocess.run(
+            ["samtools", "sort", "-@", str(threads), "-o", sorted_bam, out_bam],
+            check=True,
+        )
+        os.replace(sorted_bam, out_bam)
+        # Optional: ensure header says coordinate (samtools sort typically sets it)
+        so = "coordinate"
+
+    logger.info(f"Indexing duplicate marked BAM file (SO={so!r})")
+    subprocess.run(["samtools", "index", "-@", str(threads), out_bam], check=True)
     logger.info(f"Indexing completed for {out_bam}")
 
     usage = resource.getrusage(resource.RUSAGE_CHILDREN)
