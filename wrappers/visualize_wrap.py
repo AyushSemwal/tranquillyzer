@@ -207,8 +207,7 @@ def visualize_wrap(
             encoded_data,
             model,
             max_batch_size,
-            min_batch=min_batch_size,
-            strategy=None,
+            min_batch=min_batch_size
         )
     except Exception as e:
         logger.error(f"Encountered an error during annotation: {e}")
