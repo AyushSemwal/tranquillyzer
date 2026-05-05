@@ -410,14 +410,34 @@ def annotate_reads_wrap(
             if queued_chunks == 0:
                 logger.info("No pending chunks found. Dataset is already annotated.")
     except Exception as e:
-        # Wind down queues, close workers when done, print error and exit
+        # HARDENING: force-terminate workers with a bounded timeline rather
+        # than worker.join() with no timeout. If a worker is stuck in a CUDA
+        # or NCCL call, an unbounded join hangs until SLURM's cgroup manager
+        # SIGKILLs the whole job. SIGKILL mid-NCCL-collective is a classic
+        # way to leave the NCCL ring / driver state corrupt across jobs on
+        # the same node. Bounded shutdown keeps the driver clean.
         for _ in range(threads):
             task_queue.put(None)
 
         _empty_results_queue(result_queue, workers)
+
         for worker in workers:
-            worker.join()
-            worker.close()
+            worker.join(timeout=5)
+        for worker in workers:
+            if worker.is_alive():
+                logger.warning(f"Worker {worker.pid} still alive after 5s — sending SIGTERM")
+                worker.terminate()
+                worker.join(timeout=2)
+        for worker in workers:
+            if worker.is_alive():
+                logger.error(f"Worker {worker.pid} still alive after SIGTERM — sending SIGKILL")
+                worker.kill()
+                worker.join(timeout=2)
+        for worker in workers:
+            try:
+                worker.close()
+            except ValueError:
+                pass  # Process handle still open; safe to ignore in this fallback path.
 
         logger.error(
             f"Error found while annotating: {e}. Resume from the last checkpoint by re-running with resume enabled. Exiting!"
