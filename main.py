@@ -1205,6 +1205,16 @@ def simulate_data(
         help="Maximum length of random cDNA spacer between concatenated read fragments.",
         rich_help_panel="Read Structure",
     ),
+    min_flank: int = typer.Option(
+        0,
+        help="Minimum length of random cDNA flank at each terminal end of a read.",
+        rich_help_panel="Read Structure",
+    ),
+    max_flank: int = typer.Option(
+        50,
+        help="Maximum length of random cDNA flank at each terminal end of a read. Raise above the 50bp default to cover real ONT adapter-flank lengths.",
+        rich_help_panel="Read Structure",
+    ),
 ):
     """
     Generate synthetic labeled reads for training, and serialize to PKL.
@@ -1255,6 +1265,8 @@ def simulate_data(
         max_trunc_3p,
         min_spacer,
         max_spacer,
+        min_flank,
+        max_flank,
     )
 
 
@@ -1465,6 +1477,16 @@ def assess_model(
         help="Maximum length of random cDNA spacer between concatenated read fragments.",
         rich_help_panel="Read Structure",
     ),
+    min_flank: int = typer.Option(
+        0,
+        help="Minimum length of random cDNA flank at each terminal end of a read.",
+        rich_help_panel="Read Structure",
+    ),
+    max_flank: int = typer.Option(
+        50,
+        help="Maximum length of random cDNA flank at each terminal end of a read. Raise above the 50bp default to cover real ONT adapter-flank lengths.",
+        rich_help_panel="Read Structure",
+    ),
     bin_size: int = typer.Option(
         500, help="Bin width (bp) for length-binning assessment reads.", rich_help_panel="Read Structure"
     ),
@@ -1527,6 +1549,8 @@ def assess_model(
         max_trunc_3p,
         min_spacer,
         max_spacer,
+        min_flank,
+        max_flank,
         bin_size,
         max_read_length,
         gpu_mem,

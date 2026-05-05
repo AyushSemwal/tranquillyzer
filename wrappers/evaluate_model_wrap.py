@@ -24,6 +24,8 @@ def evaluate_model_wrap(
     max_trunc_3p,
     min_spacer,
     max_spacer,
+    min_flank,
+    max_flank,
     bin_size,
     max_read_length,
     gpu_mem,
@@ -106,15 +108,15 @@ def evaluate_model_wrap(
             for pat in s["patterns"]:
                 if re.match(r"N\d+", pat):
                     fixed_per_frag += int(pat[1:])
-                elif pat in ("NN", "RN"):
-                    pass  # variable length — cDNA or spacer
+                elif pat in ("NN", "RN", "RN_SPACER", "RN_FLANK"):
+                    pass  # variable length — cDNA, spacer, or terminal flank
                 elif pat in ("A", "T"):
                     fixed_per_frag += 25  # estimated polyA/T average
                 else:
                     fixed_per_frag += len(pat)  # literal adapter
 
-            # Spacer cDNA flanks: (repeat + 1) spacers at avg max_spacer/2
-            spacer_overhead = (repeat + 1) * max_spacer
+            # Two terminal flanks (RN_FLANK) + (repeat - 1) interior spacers (RN_SPACER)
+            spacer_overhead = 2 * max_flank + max(0, repeat - 1) * max_spacer
             total_fixed = fixed_per_frag * repeat + spacer_overhead
             available_for_cdna = max_read_length - total_fixed
             effective_max_cdna = max(min_cDNA, available_for_cdna // repeat)
@@ -199,6 +201,8 @@ def evaluate_model_wrap(
                     max_trunc_3p,
                     min_spacer,
                     max_spacer,
+                    min_flank,
+                    max_flank,
                     fasta_path,
                     start_idx,
                 )

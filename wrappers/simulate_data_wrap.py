@@ -22,6 +22,8 @@ def simulate_data_wrap(
     max_trunc_3p=0,
     min_spacer=0,
     max_spacer=50,
+    min_flank=0,
+    max_flank=50,
 ):
     """Generate synthetic labeled training reads and save to pickle."""
     import os
@@ -81,6 +83,8 @@ def simulate_data_wrap(
         max_trunc_3p,
         min_spacer,
         max_spacer,
+        min_flank,
+        max_flank,
     )
     logger.info("Finished generating reads")
 
