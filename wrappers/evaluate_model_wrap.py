@@ -76,6 +76,8 @@ def evaluate_model_wrap(
     output_dir = os.path.abspath(output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
+    logger.info(f"Using model: {model_name} (model_dir: {model_dir})")
+
     # ── load model config ──
 
     seq_order, sequences, barcodes, UMIs, strand = seq_orders(seq_orders_file, model_name)

@@ -152,7 +152,7 @@ def _cleanup_annotation_outputs_for_fresh_start(output_dir, checkpoint_file):
             continue
 
 
-def _combine_invalid_chunks(chunk_output_dir, output_dir, pl, chunk_size):
+def _combine_invalid_chunks(chunk_output_dir, output_dir, pl, chunk_size, model_name):
     """Combine only invalid chunk outputs into a single parquet file.
 
     Used by the whitelist-free path where valid chunks are handled separately.
@@ -161,6 +161,7 @@ def _combine_invalid_chunks(chunk_output_dir, output_dir, pl, chunk_size):
     from utils import get_version
 
     ver_col = pl.lit(get_version()).alias("tranquillyzer_version")
+    model_col = pl.lit(model_name).alias("model_name")
 
     invalid_dir = os.path.join(chunk_output_dir, "invalid_chunks")
     metadata_dir = os.path.join(output_dir, "annotation_metadata")
@@ -196,13 +197,13 @@ def _combine_invalid_chunks(chunk_output_dir, output_dir, pl, chunk_size):
 
     if pq_files:
         try:
-            pl.scan_parquet(pq_files).with_columns(ver_col).sink_parquet(
+            pl.scan_parquet(pq_files).with_columns(ver_col, model_col).sink_parquet(
                 out_path, compression="snappy", row_group_size=chunk_size
             )
         except Exception:
             logger.warning("Parallel parquet scan failed for invalid chunks, falling back to diagonal_relaxed concat.")
             pl.concat([pl.scan_parquet(f) for f in pq_files], how="diagonal_relaxed").with_columns(
-                ver_col
+                ver_col, model_col
             ).sink_parquet(out_path, compression="snappy", row_group_size=chunk_size)
         for pq_path in pq_files:
             os.remove(pq_path)
@@ -217,11 +218,13 @@ def _convert_chunk_outputs(
     run_barcode_correction,
     pl,
     chunk_size,
+    model_name,
 ):
     """Convert chunk TSV outputs to Parquet and optionally combine into final files."""
     from utils import get_version
 
     ver_col = pl.lit(get_version()).alias("tranquillyzer_version")
+    model_col = pl.lit(model_name).alias("model_name")
 
     def _sorted_chunk_files(path, suffix):
         if not os.path.isdir(path):
@@ -266,28 +269,30 @@ def _convert_chunk_outputs(
                 _write_chunk_parquets(tsv_files, out_dir)
                 all_parquets = _sorted_chunk_files(out_dir, ".parquet")
                 try:
-                    pl.scan_parquet(all_parquets).with_columns(ver_col).sink_parquet(
+                    pl.scan_parquet(all_parquets).with_columns(ver_col, model_col).sink_parquet(
                         out_path, compression="snappy", row_group_size=chunk_size
                     )
                 except Exception:
                     logger.warning("Parallel parquet scan failed, falling back to diagonal_relaxed concat.")
                     pl.concat([pl.scan_parquet(f) for f in all_parquets], how="diagonal_relaxed").with_columns(
-                        ver_col
+                        ver_col, model_col
                     ).sink_parquet(out_path, compression="snappy", row_group_size=chunk_size)
                 for tsv_path in tsv_files:
                     os.remove(tsv_path)
             elif tsv_files:
                 # Legacy: all TSV
                 try:
-                    pl.scan_csv(tsv_files, separator="\t", infer_schema_length=5000).with_columns(ver_col).sink_parquet(
-                        out_path, compression="snappy", row_group_size=chunk_size
-                    )
+                    pl.scan_csv(tsv_files, separator="\t", infer_schema_length=5000).with_columns(
+                        ver_col, model_col
+                    ).sink_parquet(out_path, compression="snappy", row_group_size=chunk_size)
                 except Exception:
                     logger.warning("TSV scan failed due to schema mismatch, falling back to diagonal_relaxed concat.")
                     pl.concat(
                         [pl.scan_csv(f, separator="\t", infer_schema_length=5000) for f in tsv_files],
                         how="diagonal_relaxed",
-                    ).with_columns(ver_col).sink_parquet(out_path, compression="snappy", row_group_size=chunk_size)
+                    ).with_columns(ver_col, model_col).sink_parquet(
+                        out_path, compression="snappy", row_group_size=chunk_size
+                    )
                 if keep_chunk_tsv_after_combine:
                     _write_chunk_parquets(tsv_files, out_dir)
                 for tsv_path in tsv_files:
@@ -295,14 +300,14 @@ def _convert_chunk_outputs(
             elif parquet_files:
                 # Parallel multi-file scan — Polars reads chunks across cores internally
                 try:
-                    pl.scan_parquet(parquet_files).with_columns(ver_col).sink_parquet(
+                    pl.scan_parquet(parquet_files).with_columns(ver_col, model_col).sink_parquet(
                         out_path, compression="snappy", row_group_size=chunk_size
                     )
                 except Exception:
                     # Fallback for schema mismatches (e.g., resumed runs with mixed formats)
                     logger.warning("Parallel parquet scan failed, falling back to diagonal_relaxed concat.")
                     pl.concat([pl.scan_parquet(f) for f in parquet_files], how="diagonal_relaxed").with_columns(
-                        ver_col
+                        ver_col, model_col
                     ).sink_parquet(out_path, compression="snappy", row_group_size=chunk_size)
 
         _combine_valid_invalid(valid_files, valid_chunk_parquets, f"{metadata_dir}/{valid_output_name}", valid_out_dir)

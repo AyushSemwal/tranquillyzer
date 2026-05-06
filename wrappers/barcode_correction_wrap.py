@@ -255,6 +255,8 @@ def barcode_correction_wrap(
     )
     from scripts.trained_models import seq_orders
 
+    logger.info(f"Using model: {model_name} (seq_orders: {seq_order_file})")
+
     os.makedirs(output_dir, exist_ok=True)
 
     multi_file_input = isinstance(input_file, list)
@@ -635,7 +637,8 @@ def barcode_correction_wrap(
         from utils import get_version
 
         pl.scan_csv(chunk_paths, separator="\t", infer_schema_length=5000).with_columns(
-            pl.lit(get_version()).alias("tranquillyzer_version")
+            pl.lit(get_version()).alias("tranquillyzer_version"),
+            pl.lit(model_name).alias("model_name"),
         ).sink_parquet(corrected_parquet_tmp, compression="snappy")
 
     # Cleanup

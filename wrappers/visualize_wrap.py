@@ -103,6 +103,8 @@ def visualize_wrap(
     if not os.path.isdir(models_dir):
         raise FileNotFoundError(f"Model directory not found: {models_dir}")
 
+    logger.info(f"Using model: {model_name} (models_dir: {models_dir})")
+
     utils_dir = os.path.join(base_dir, "utils")
     utils_dir = os.path.abspath(utils_dir)
 

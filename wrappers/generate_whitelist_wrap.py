@@ -197,6 +197,10 @@ def generate_whitelist_wrap(
         Path to the generated discovered_whitelist.tsv.
     """
     # Step 1: Resolve barcode columns
+    if barcode_columns_str:
+        logger.info(f"Using --barcode-columns override: {barcode_columns_str} (model_name '{model_name}' not used)")
+    else:
+        logger.info(f"Using model: {model_name} (seq_orders: {seq_order_file or '<bundled>'})")
     barcodes, seq_order, sequences = _resolve_barcode_columns(barcode_columns_str, model_name, seq_order_file)
     logger.info(f"Barcode columns: {barcodes}")
 
@@ -217,6 +221,7 @@ def generate_whitelist_wrap(
         global_counts,
         barcodes,
         output_dir,
+        model_name,
         expected_cells=expected_cells,
         min_reads=min_reads_per_barcode,
         min_cell_ratio=min_cell_ratio,

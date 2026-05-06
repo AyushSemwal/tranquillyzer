@@ -63,6 +63,19 @@ def _count_rows(path):
     return pl.scan_parquet(path).select(pl.len()).collect()[0, 0]
 
 
+_QC_MODEL_NAME = None
+
+
+def _set_qc_model_name(model_name):
+    """Set the model name to be written in QC artifact headers.
+
+    Called once by the wrapper before plot functions run. Used by
+    ``_write_tsv`` to emit a ``# model_name:`` header in plot-data TSVs.
+    """
+    global _QC_MODEL_NAME
+    _QC_MODEL_NAME = model_name
+
+
 def _write_tsv(tsv_dir, filename, df):
     """Write a Polars DataFrame as a TSV file into *tsv_dir*."""
     if tsv_dir is None:
@@ -73,6 +86,7 @@ def _write_tsv(tsv_dir, filename, df):
 
     with open(path, "w") as fh:
         fh.write(f"# tranquillyzer_version: {get_version()}\n")
+        fh.write(f"# model_name: {_QC_MODEL_NAME}\n")
         fh.write(df.write_csv(separator="\t"))
 
 
@@ -374,7 +388,7 @@ def _build_row_figure(row, n_cols, shared_yaxes=False):
     return combined
 
 
-def _write_html_report(path, row_figs, sample_name):
+def _write_html_report(path, row_figs, sample_name, model_name):
     """
     Combine per-row Plotly figures into a single self-contained HTML file.
     Plotly.js is loaded once via CDN; each figure renders with its own modebar.
@@ -396,14 +410,17 @@ def _write_html_report(path, row_figs, sample_name):
         )
 
     page_title = f"Tranquillyzer v{__version__} QC Report \u2014 {sample_name}"
+    subtitle = f"Model: {model_name}"
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(
             "<!DOCTYPE html><html>"
-            f"<head><meta charset='utf-8'><meta name='generator' content='tranquillyzer v{__version__}'><style>"
+            f"<head><meta charset='utf-8'><meta name='generator' content='tranquillyzer v{__version__}'>"
+            f"<meta name='tranquillyzer-model' content='{model_name}'><style>"
             "body{background:#f5f7fa;font-family:Arial,sans-serif;margin:0;padding:16px}"
-            "h1{text-align:center;font-size:18px;color:#333;margin:0 0 8px}"
+            "h1{text-align:center;font-size:18px;color:#333;margin:0 0 4px}"
+            "h2{text-align:center;font-size:13px;color:#666;font-weight:normal;margin:0 0 12px}"
             "</style></head>"
-            f"<body><h1>{page_title}</h1>"
+            f"<body><h1>{page_title}</h1><h2>{subtitle}</h2>"
         )
         for fig_html in html_figs:
             fh.write(

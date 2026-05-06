@@ -37,11 +37,14 @@ def qc_metrics_wrap(
     import os
     from concurrent.futures import ThreadPoolExecutor
 
+    import polars as pl
+
     from scripts.qc_metrics import (
         _find_file,
         _probe_schema,
         _detect_barcode_types,
         _compute_summary,
+        _set_qc_model_name,
         _plot_read_architecture,
         _plot_barcode_assignment,
         _plot_invalid_reasons,
@@ -99,6 +102,29 @@ def qc_metrics_wrap(
     # ── probe schemas (zero data loaded) ────────────────────────────────────
     vcols = _probe_schema(valid_path)
     barcode_types = _detect_barcode_types(list(vcols))
+
+    # ── resolve model name from annotation parquet ──────────────────────────
+    def _read_model_name(path):
+        if path is None:
+            return "unknown"
+        try:
+            schema = pl.scan_parquet(path).collect_schema()
+            if "model_name" not in schema.names():
+                return "unknown"
+            row = pl.scan_parquet(path).select("model_name").head(1).collect()
+            if row.height == 0:
+                return "unknown"
+            value = row.item(0, 0)
+            return str(value) if value is not None else "unknown"
+        except Exception as e:
+            logger.warning(f"Could not read model_name from {path}: {e}")
+            return "unknown"
+
+    model_name = _read_model_name(valid_path)
+    if model_name == "unknown":
+        model_name = _read_model_name(invalid_path)
+    logger.info(f"Model name resolved from annotation parquet: {model_name}")
+    _set_qc_model_name(model_name)
 
     # ── compute shared summary data ──────────────────────────────────────────
     summary = _compute_summary(valid_path, invalid_path, vcols)
@@ -328,6 +354,6 @@ def qc_metrics_wrap(
         shared_y = len(row) > 1  # side-by-side rows share y-axis
         row_figs.append(_build_row_figure(row, n_cols, shared_yaxes=shared_y))
     report_path = os.path.join(output_dir, f"{sample_name}_qc_report.html")
-    _write_html_report(report_path, row_figs, sample_name)
+    _write_html_report(report_path, row_figs, sample_name, model_name)
     logger.info(f"QC report complete -> {report_path}")
     logger.info(f"Plot data TSVs   -> {tsv_dir}")
