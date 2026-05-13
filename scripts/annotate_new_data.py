@@ -407,6 +407,7 @@ def load_model_for_inference(model_path, num_labels):
     n_gpus = available_gpus.n_gpus()
     min_batch = int(n_gpus) if n_gpus > 0 else 1
     strategy = tf.distribute.MirroredStrategy() if n_gpus > 1 else None
+    available_gpus.log_gpus_in_use(strategy=strategy)
 
     conv_filters = 256
     params = load_model_params(model_path)
@@ -422,7 +423,7 @@ def model_predictions(
     parquet_file,
     chunk_start,
     chunk_size,
-    model,
+    model_state,
     model_path,
     strategy,
     params,
@@ -437,8 +438,10 @@ def model_predictions(
 ):
     """Yield per-chunk (predictions, read_names, reads, lengths, qualities) from a Parquet file.
 
-    The *model* is pre-built by the caller via :func:`load_model_for_inference`
-    and reused across bins.
+    *model_state* is a mutable dict ``{"model": <keras model>, "using_strategy":
+    <bool>}`` owned by the caller and shared across bin calls. It lets us
+    only call ``build_model`` on genuine strategy flips instead of on every
+    new bin.
     """
     total_rows = calculate_total_rows(parquet_file)
     bin_name = os.path.basename(parquet_file).replace(".parquet", "")
@@ -490,7 +493,8 @@ def model_predictions(
     def _rebuild_model():
         return build_model(model_path, conv_filters, num_labels, strategy=strategy)
 
-    using_strategy = strategy is not None
+    model = model_state["model"]
+    using_strategy = model_state["using_strategy"]
 
     for chunk_idx in range(chunk_start, num_chunks + 1):
         if callable(should_process_chunk) and not should_process_chunk(bin_name, chunk_idx):
@@ -515,6 +519,9 @@ def model_predictions(
             if not using_strategy and strategy is not None:
                 model = build_model(model_path, conv_filters, num_labels, strategy=strategy)
                 using_strategy = True
+                model_state["model"] = model
+                model_state["using_strategy"] = True
+                available_gpus.log_gpus_in_use(strategy=strategy)
             chunk_predictions, global_bs, model = annotate_new_data_parallel(
                 X_new_padded,
                 model,
@@ -522,10 +529,14 @@ def model_predictions(
                 min_batch=min_batch,
                 rebuild_model_fn=_rebuild_model,
             )
+            model_state["model"] = model  # capture any OOM-driven rebuild
         else:
             if using_strategy:
                 model = build_model(model_path, conv_filters, num_labels, strategy=None)
                 using_strategy = False
+                model_state["model"] = model
+                model_state["using_strategy"] = False
+                available_gpus.log_gpus_in_use(strategy=None)
             small_bs = max(1, min(global_bs, len(reads)))
             chunk_predictions = model.predict(X_new_padded, batch_size=small_bs, verbose=0)
 

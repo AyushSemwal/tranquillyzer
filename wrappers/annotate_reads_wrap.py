@@ -69,13 +69,14 @@ def annotate_reads_wrap(
         estimate_average_read_length_from_bin,
         calculate_total_rows,
         convert_tsv_to_parquet,
-        log_gpus_used,
+        log_gpus_detected,
     ) = load_libs()
 
     start = time.time()
 
-    # Let user know whether they're running on CPU only or GPU (provided handles if so)
-    log_gpus_used()
+    # Report physical GPU detection up front; actual in-use count is logged
+    # later from inside load_model_for_inference once the strategy is resolved.
+    log_gpus_detected()
 
     # Read / create / prepare input files and directories
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -341,6 +342,12 @@ def annotate_reads_wrap(
     if min_batch_size < min_batch_from_model:
         min_batch_size = min_batch_from_model
 
+    # Shared mutable state so model_predictions only rebuilds on genuine
+    # strategy flips, even across bins. Without this, every bin entered
+    # `model_predictions` with the original MirroredStrategy model and
+    # rebuilt it back to single-device from scratch on every small bin.
+    model_state = {"model": model, "using_strategy": strategy is not None}
+
     task_queue = mp.Queue(maxsize=max_queue_size)
     result_queue = mp.Queue()
     count = mp.Value("i", 0)
@@ -394,7 +401,7 @@ def annotate_reads_wrap(
                     parquet_file,
                     chunk_start_local,
                     chunk_size,
-                    model,
+                    model_state,
                     model_path,
                     strategy,
                     params,

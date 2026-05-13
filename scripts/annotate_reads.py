@@ -409,7 +409,7 @@ def load_libs():
     )
     from scripts.preprocess_reads import convert_tsv_to_parquet
     from scripts.trained_models import seq_orders, get_valid_structures
-    from scripts.available_gpus import log_gpus_used
+    from scripts.available_gpus import log_gpus_detected
 
     return (
         os,
@@ -429,7 +429,7 @@ def load_libs():
         estimate_average_read_length_from_bin,
         calculate_total_rows,
         convert_tsv_to_parquet,
-        log_gpus_used,
+        log_gpus_detected,
     )
 
 

@@ -25,7 +25,7 @@ def load_libs():
     from scripts.trained_models import trained_models, seq_orders, get_valid_structures
     from scripts.annotate_new_data import annotate_new_data_parallel
     from scripts.visualize_annot import save_plots_to_pdf
-    from scripts.available_gpus import log_gpus_used
+    from scripts.available_gpus import log_gpus_detected, log_gpus_in_use
 
     return (
         os,
@@ -43,7 +43,8 @@ def load_libs():
         seq_orders,
         annotate_new_data_parallel,
         save_plots_to_pdf,
-        log_gpus_used,
+        log_gpus_detected,
+        log_gpus_in_use,
         get_valid_structures,
     )
 
@@ -81,7 +82,8 @@ def visualize_wrap(
         seq_orders,
         annotate_new_data_parallel,
         save_plots_to_pdf,
-        log_gpus_used,
+        log_gpus_detected,
+        log_gpus_in_use,
         get_valid_structures,
     ) = load_libs()
 
@@ -92,8 +94,9 @@ def visualize_wrap(
 
     start = time.time()
 
-    # Let user know whether they're running on CPU only or GPU (provided handles if so)
-    log_gpus_used()
+    # Report physical GPU detection up front; actual in-use count is logged
+    # below once the (single-device) build_model call has succeeded.
+    log_gpus_detected()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.abspath(os.path.join(base_dir, ".."))
@@ -131,6 +134,9 @@ def visualize_wrap(
     except Exception as e:
         logger.error(f"Error encountered while building model: {e}")
         sys.exit(1)
+
+    # visualize always runs single-device by design (strategy=None).
+    log_gpus_in_use(strategy=None)
 
     palette = ["red", "blue", "green", "purple", "pink", "cyan", "magenta", "orange", "brown"]
     colors = {"random_s": "black", "random_e": "black", "cDNA": "gray", "polyT": "orange", "polyA": "orange"}

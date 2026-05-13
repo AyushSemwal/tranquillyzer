@@ -37,7 +37,7 @@ def load_libs():
     )
     from scripts.extract_annotated_seqs import extract_annotated_full_length_seqs
     from scripts.visualize_annot import save_plots_to_pdf
-    from scripts.available_gpus import log_gpus_used
+    from scripts.available_gpus import log_gpus_detected, log_gpus_in_use
     from utils import get_version
     import h5py
 
@@ -70,7 +70,8 @@ def load_libs():
         preprocess_sequences,
         extract_annotated_full_length_seqs,
         save_plots_to_pdf,
-        log_gpus_used,
+        log_gpus_detected,
+        log_gpus_in_use,
         get_version,
         h5py,
     )
@@ -128,13 +129,15 @@ def train_model_wrap(
         preprocess_sequences,
         extract_annotated_full_length_seqs,
         save_plots_to_pdf,
-        log_gpus_used,
+        log_gpus_detected,
+        log_gpus_in_use,
         get_version,
         h5py,
     ) = load_libs()
 
-    # Let user know whether they're running on CPU only or GPU (provided handles if so)
-    log_gpus_used()
+    # Report physical GPU detection up front; actual in-use count is logged
+    # below once the MirroredStrategy has been constructed per variant.
+    log_gpus_detected()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(base_dir, "..")
@@ -328,7 +331,7 @@ def train_model_wrap(
 
         # Multi-GPU strategy
         strategy = tf.distribute.MirroredStrategy()
-        logger.info(f"Number of devices: {strategy.num_replicas_in_sync}")
+        log_gpus_in_use(strategy=strategy)
 
         with strategy.scope():
             model = ont_read_annotator(
