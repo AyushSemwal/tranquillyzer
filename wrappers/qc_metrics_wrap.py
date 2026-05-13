@@ -36,9 +36,13 @@ def qc_metrics_wrap(
 ):
     """Generate QC metrics report from annotation outputs."""
     import os
+    import time
+    import resource
     from concurrent.futures import ThreadPoolExecutor
 
     import polars as pl
+
+    start = time.time()
 
     from scripts.qc_metrics import (
         _find_file,
@@ -364,3 +368,10 @@ def qc_metrics_wrap(
     _write_html_report(report_path, row_figs, sample_name, model_name)
     logger.info(f"QC report complete -> {report_path}")
     logger.info(f"Plot data TSVs   -> {tsv_dir}")
+
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

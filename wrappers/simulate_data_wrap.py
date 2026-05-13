@@ -28,6 +28,8 @@ def simulate_data_wrap(
     """Generate synthetic labeled training reads and save to pickle."""
     import os
     import random
+    import resource
+    import time
     import pickle
     import numpy as np
     from Bio import SeqIO
@@ -36,6 +38,7 @@ def simulate_data_wrap(
     from scripts.simulate_training_data import generate_training_reads
     from scripts.trained_models import seq_orders, get_training_structures
 
+    start = time.time()
     length_range = (min_cDNA, max_cDNA)
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -96,3 +99,10 @@ def simulate_data_wrap(
     with open(f"{output_dir}/simulated_data/labels.pkl", "wb") as labels_pkl:
         pickle.dump(labels, labels_pkl)
     logger.info("Outputs saved")
+
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

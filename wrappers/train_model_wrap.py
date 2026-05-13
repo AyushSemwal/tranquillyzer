@@ -13,6 +13,7 @@ def load_libs():
     import time
     import pickle
     import random
+    import resource
     import itertools
     from collections import Counter
 
@@ -49,6 +50,7 @@ def load_libs():
         time,
         pickle,
         random,
+        resource,
         itertools,
         Counter,
         np,
@@ -108,6 +110,7 @@ def train_model_wrap(
         time,
         pickle,
         random,
+        resource,
         itertools,
         Counter,
         np,
@@ -134,6 +137,8 @@ def train_model_wrap(
         get_version,
         h5py,
     ) = load_libs()
+
+    start = time.time()
 
     # Report physical GPU detection up front; actual in-use count is logged
     # below once the MirroredStrategy has been constructed per variant.
@@ -415,3 +420,11 @@ def train_model_wrap(
             chars_per_line=150,
         )
         gc.collect()
+
+    logger.info("Note: peak memory does not include GPU device memory.")
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

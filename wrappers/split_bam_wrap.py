@@ -19,7 +19,16 @@ def split_bam_wrap(
     prefer_csi_index: bool = False,
 ):
     """Split a BAM file into per-cell-barcode BAM files."""
+    import logging
+    import os
+    import resource
+    import time
+
     from scripts.split_bam_file import split_bam_file
+
+    logger = logging.getLogger(__name__)
+
+    start = time.time()
 
     split_bam_file(
         input_bam,
@@ -38,3 +47,10 @@ def split_bam_wrap(
         index_outputs=index_outputs,
         prefer_csi_index=prefer_csi_index,
     )
+
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

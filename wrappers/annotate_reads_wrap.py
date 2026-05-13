@@ -524,7 +524,9 @@ def annotate_reads_wrap(
         if os.path.isdir(chunk_output_dir):
             shutil.rmtree(chunk_output_dir, ignore_errors=True)
 
-    usage = resource.getrusage(resource.RUSAGE_CHILDREN)
-    max_rss_mb = usage.ru_maxrss / 1024 if os.uname().sysname == "Linux" else usage.ru_maxrss  # Linux gives KB
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
     logger.info(f"Peak memory usage during annotation pipeline: {max_rss_mb:.2f} MB")
     logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")
