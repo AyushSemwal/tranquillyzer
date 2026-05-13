@@ -42,6 +42,7 @@ jobs:
          curl -L "https://www.dropbox.com/scl/fi/inz070k8k7kfpibnj9lkt/10x3p_sc_ont_013_lbl_bin.pkl?rlkey=pwhonyomb3i4d13yjat8cxpro&dl=0" -o models/10x3p_sc_ont_013_lbl_bin.pkl
          curl -L "https://www.dropbox.com/scl/fi/9203pc2gz45u419kze446/hg38_gencode_chr21.fa?rlkey=k1co80pso7zsvb8oiqqc1o1dy&st=e0e92h5h&dl=1" -o tests/references/hg38_gencode_chr21.fa
          curl -L "https://www.dropbox.com/scl/fi/9zvh26moro7frfho818ko/hg38_gencode_chr21.gtf?rlkey=v3s05m9ap3srpjhvl5yfjfeq7&st=hn6mufoq&dl=0" -o tests/references/hg38_gencode_chr21.gtf
+         curl -L "https://www.dropbox.com/scl/fi/98ykmaori9zrqf0q1qn36/hg38.HouseKeepingGenes.bed.gz?rlkey=dqjabcby9b9owso30njfpauyt&st=zmvxk4pp&dl=0" -o tests/references/hg38.HouseKeepingGenes.bed.gz
 
       - name: Run Pytest with coverage
         shell: bash -l {0}

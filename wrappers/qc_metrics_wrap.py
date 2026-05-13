@@ -32,6 +32,7 @@ def qc_metrics_wrap(
     counts_matrix=None,
     gtf=None,
     threads=4,
+    gene_body_bed=None,
 ):
     """Generate QC metrics report from annotation outputs."""
     import os
@@ -187,8 +188,14 @@ def qc_metrics_wrap(
             else None
         )
         f_genebody = (
-            pool.submit(_plot_gene_body_coverage, bam_file, gtf_path=gtf, tsv_dir=tsv_dir, threads=threads)
-            if bam_file is not None and gtf is not None
+            pool.submit(
+                _plot_gene_body_coverage,
+                bam_file,
+                bed_path=gene_body_bed,
+                tsv_dir=tsv_dir,
+                threads=threads,
+            )
+            if bam_file is not None and gene_body_bed is not None
             else None
         )
 

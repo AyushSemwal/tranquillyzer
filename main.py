@@ -822,7 +822,7 @@ def qc_metrics(
     ),
     bam: str = typer.Option(
         None,
-        help="Dup-marked BAM with CB/UB tags. Enables saturation, mapping rate, duplication, and gene body coverage (with [cyan]--gtf[/cyan]) plots.",
+        help="Dup-marked BAM with CB/UB tags. Enables saturation, mapping rate, duplication, and gene body coverage (with [cyan]--gene-body-bed[/cyan]) plots.",
         rich_help_panel="Alignment & Gene Quantification",
     ),
     counts_matrix: str = typer.Option(
@@ -832,7 +832,17 @@ def qc_metrics(
     ),
     gtf: str = typer.Option(
         None,
-        help="GTF annotation (e.g. GENCODE). Required with [cyan]--counts-matrix[/cyan]; also enables gene body coverage with [cyan]--bam[/cyan].",
+        help="GTF annotation (e.g. GENCODE). Required with [cyan]--counts-matrix[/cyan].",
+        rich_help_panel="Alignment & Gene Quantification",
+    ),
+    gene_body_bed: str = typer.Option(
+        None,
+        help=(
+            "BED12 file (plain or [cyan].gz[/cyan]) for gene body coverage, RSeQC-style.\n\n"
+            "Required to enable the gene body coverage plot; without it the plot is skipped. "
+            "Recommended sources: RSeQC HouseKeepingGenes.bed[.gz], a MANE_Select export, "
+            "or any one-transcript-per-gene BED12."
+        ),
         rich_help_panel="Alignment & Gene Quantification",
     ),
 ):
@@ -858,7 +868,7 @@ def qc_metrics(
      12) Unique UMIs per cell (requires --bam).
      13) Mapping rate per cell (requires --bam).
      14) Duplicate rate per cell (requires --bam).
-     15) Gene body coverage profile (requires --bam + --gtf).
+     15) Gene body coverage profile (requires --bam + --gene-body-bed).
      16) Genes per cell (requires --counts-matrix + --gtf).
      17) UMIs per cell (requires --counts-matrix + --gtf).
      18) Mitochondrial % per cell (requires --counts-matrix + --gtf).
@@ -894,6 +904,7 @@ def qc_metrics(
         counts_matrix=counts_matrix,
         gtf=gtf,
         threads=threads,
+        gene_body_bed=gene_body_bed,
     )
 
 
