@@ -50,8 +50,9 @@ Reads are converted to integer tokens before training:
 | T | 4 |
 | N | 5 |
 
-This mapping is governed by the `vocab_size` parameter (default: 5, for the five nucleotide symbols). The padding token
-(0) is used only to make reads within a batch the same length and does not represent a nucleotide.
+This mapping is governed by the `vocab_size` parameter (default: 6, covering the four DNA bases, the ambiguity
+symbol `N`, and the padding token). The padding token (0) is used only to make reads within a batch the same length
+and does not represent a nucleotide.
 
 ## Embedding Layer
 
@@ -79,7 +80,7 @@ The key parameters are:
 
 - **`conv_kernel_size`** (default: 25): how wide a motif each layer can detect at once. Larger kernels help detect
   longer protocol motifs and smooth local noise, but values that are too large may blur sharp boundary cues.
-- **`conv_filters`** (default: 128 per layer): the number of distinct motif detectors per layer. More filters means
+- **`conv_filters`** (default: 64 per layer): the number of distinct motif detectors per layer. More filters means
   more pattern capacity at the cost of memory and compute. If boundaries are being missed or adapters vary across
   reads, increasing filters is often more effective than adding more layers.
 - **`conv_layers`** (default: 3): how many convolutional stages are stacked. More layers allow hierarchical motif
@@ -109,7 +110,7 @@ sequence in order and retaining information over long distances.
 _Tranquillyzer_ uses a **bidirectional** LSTM by default, meaning it reads the sequence both left-to-right and
 right-to-left. This allows each position to be interpreted using context from both sides.
 
-- **`lstm_units`** (default: 96): the size of the LSTM's internal memory. Increasing units improves the model's ability
+- **`lstm_units`** (default: 32): the size of the LSTM's internal memory. Increasing units improves the model's ability
   to track long-range structure but increases compute and can overfit.
 - **`lstm_layers`** (default: 1): stacking multiple LSTMs increases modeling power but is often unnecessary for
   standard protocols.

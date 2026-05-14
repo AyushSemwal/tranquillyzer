@@ -25,7 +25,7 @@ def load_libs():
     from scripts.trained_models import trained_models, seq_orders, get_valid_structures
     from scripts.annotate_new_data import annotate_new_data_parallel
     from scripts.visualize_annot import save_plots_to_pdf
-    from scripts.available_gpus import log_gpus_used
+    from scripts.available_gpus import log_gpus_detected, log_gpus_in_use
 
     return (
         os,
@@ -43,7 +43,8 @@ def load_libs():
         seq_orders,
         annotate_new_data_parallel,
         save_plots_to_pdf,
-        log_gpus_used,
+        log_gpus_detected,
+        log_gpus_in_use,
         get_valid_structures,
     )
 
@@ -81,7 +82,8 @@ def visualize_wrap(
         seq_orders,
         annotate_new_data_parallel,
         save_plots_to_pdf,
-        log_gpus_used,
+        log_gpus_detected,
+        log_gpus_in_use,
         get_valid_structures,
     ) = load_libs()
 
@@ -92,8 +94,9 @@ def visualize_wrap(
 
     start = time.time()
 
-    # Let user know whether they're running on CPU only or GPU (provided handles if so)
-    log_gpus_used()
+    # Report physical GPU detection up front; actual in-use count is logged
+    # below once the (single-device) build_model call has succeeded.
+    log_gpus_detected()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.abspath(os.path.join(base_dir, ".."))
@@ -102,6 +105,8 @@ def visualize_wrap(
     models_dir = os.path.abspath(models_dir)
     if not os.path.isdir(models_dir):
         raise FileNotFoundError(f"Model directory not found: {models_dir}")
+
+    logger.info(f"Using model: {model_name} (models_dir: {models_dir})")
 
     utils_dir = os.path.join(base_dir, "utils")
     utils_dir = os.path.abspath(utils_dir)
@@ -129,6 +134,9 @@ def visualize_wrap(
     except Exception as e:
         logger.error(f"Error encountered while building model: {e}")
         sys.exit(1)
+
+    # visualize always runs single-device by design (strategy=None).
+    log_gpus_in_use(strategy=None)
 
     palette = ["red", "blue", "green", "purple", "pink", "cyan", "magenta", "orange", "brown"]
     colors = {"random_s": "black", "random_e": "black", "cDNA": "gray", "polyT": "orange", "polyA": "orange"}
@@ -237,8 +245,10 @@ def visualize_wrap(
     save_plots_to_pdf(selected_reads, annotated_reads, selected_read_names, pdf_filename, colors, chars_per_line=150)
     logger.info(f"Visualization saved to {pdf_filename}\n")
 
-    usage = resource.getrusage(resource.RUSAGE_CHILDREN)
-    max_rss_mb = usage.ru_maxrss / 1024 if os.uname().sysname == "Linux" else usage.ru_maxrss  # Linux gives KB
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
     logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
     logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")
 

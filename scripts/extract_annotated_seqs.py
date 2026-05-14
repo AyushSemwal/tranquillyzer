@@ -344,9 +344,10 @@ def process_full_len_reads(data, barcodes, label_binarizer, model_path, split_co
 
     if annotations["architecture"] == "valid":
         for barcode in barcodes:
-            annotations[barcode]["Sequences"] = [
-                read[int(annotations[barcode]["Starts"][0]) : int(annotations[barcode]["Ends"][0])]
-            ]
+            if annotations[barcode]["Starts"]:
+                annotations[barcode]["Sequences"] = [
+                    read[int(annotations[barcode]["Starts"][0]) : int(annotations[barcode]["Ends"][0])]
+                ]
 
     # Compute edit distances for segments with known literal patterns (all reads, not just valid)
     if known_patterns:

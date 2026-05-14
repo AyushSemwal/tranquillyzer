@@ -22,9 +22,13 @@ def featurecounts_wrap(
 ):
     """Resolve container runtime, pull image if needed, then run the batched featureCounts pipeline."""
     import os
+    import resource
+    import time
 
     from scripts.container_runtime import DEFAULT_FEATURECOUNTS_IMAGE, resolve
     from scripts.featurecounts_matrix import run_featurecounts_matrix
+
+    start = time.time()
 
     bam_dir = os.path.abspath(bam_dir)
     gtf = os.path.abspath(gtf)
@@ -44,7 +48,7 @@ def featurecounts_wrap(
     logger.info("featureCounts runtime: %s", rt)
     logger.info("featureCounts invocation: %s", fc_cmd)
 
-    return run_featurecounts_matrix(
+    result = run_featurecounts_matrix(
         bam_dir=bam_dir,
         gtf=gtf,
         out_dir=out_dir,
@@ -56,3 +60,11 @@ def featurecounts_wrap(
         workers=workers,
         no_run=no_run,
     )
+
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")
+    return result

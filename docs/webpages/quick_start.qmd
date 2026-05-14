@@ -20,14 +20,14 @@ _Tranquillyzer_ ships with pre-trained models for common 10x Genomics protocols:
 |:--|:-:|:-:|
 | Batch Size | 128 | 128 |
 | Training Fraction | 0.8 | 0.8 |
-| Vocab Size | 5 | 5 |
+| Vocab Size | 5 | 6 |
 | Embedding Dimension | 128 | 128 |
 | Conv Layers | 4 | 3 |
-| Conv Filters | 128 | 128 |
+| Conv Filters | 128 | 64 |
 | Conv Kernel Size | 25 | 25 |
-| Dilation Rates | [1, 1, 1, 1] | [1, 3, 5] |
+| Dilation Rates | [1, 1, 1, 1] | [1, 1, 1] |
 | LSTM Layers | 1 | 1 |
-| LSTM Units | 96 | 96 |
+| LSTM Units | 96 | 32 |
 | Bidirectional | True | True |
 | CRF Layer | True | True |
 | Attention Heads | 0 | 0 |
@@ -51,7 +51,7 @@ tranquillyzer preprocess \
 
 # 2. Annotate reads + correct barcodes + demultiplex (single pass)
 tranquillyzer annotate-reads \
-    --model-name 10x3p_sc_ont_013 \
+    --model-name 10x3p_sc_ont_016 \
     --gpu-mem 48 \
     --threads 12 \
     --run-barcode-correction \
@@ -92,14 +92,14 @@ tranquillyzer preprocess \
 
 # 2. Annotate reads (no whitelist)
 tranquillyzer annotate-reads \
-    --model-name 10x3p_sc_ont_013 \
+    --model-name 10x3p_sc_ont_016 \
     --gpu-mem 48 \
     --threads 12 \
     /path/to/output
 
 # 3. Discover cell barcodes via knee-point detection
 tranquillyzer generate-whitelist \
-    --model-name 10x3p_sc_ont_013 \
+    --model-name 10x3p_sc_ont_016 \
     --expected-cells 5000 \
     /path/to/output
 

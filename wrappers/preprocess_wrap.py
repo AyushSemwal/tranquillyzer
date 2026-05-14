@@ -69,7 +69,9 @@ def preprocess_wrap(
             max_padding_fraction=max_padding_fraction,
             num_workers=threads,
         )
-    usage = resource.getrusage(resource.RUSAGE_CHILDREN)
-    max_rss_mb = usage.ru_maxrss / 1024 if os.uname().sysname == "Linux" else usage.ru_maxrss
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
     logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
     logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

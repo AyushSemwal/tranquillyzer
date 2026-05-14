@@ -29,6 +29,10 @@ For background on how reads are simulated and why, see [Read Structure Simulatio
 | `--rc` / `--no-rc` | FLAG | `--rc` | Include reverse complements (doubles the training set) | Disable only if your protocol has a fixed known orientation |
 | `--transcriptome` | TEXT | None | Transcriptome FASTA for realistic cDNA generation | Recommended — improves model accuracy on real data |
 | `--invalid-fraction` | FLOAT | 0.3 | Fraction of reads generated as structurally invalid artifacts | Increase if your data has many malformed reads |
+| `--min-spacer` | INT | 0 | Minimum length of random cDNA spacer between concatenated fragments | Rarely changed |
+| `--max-spacer` | INT | 50 | Maximum length of random cDNA spacer between concatenated fragments | Raise to cover longer real chimeric junctions |
+| `--min-flank` | INT | 0 | Minimum length of random cDNA flank at each terminal end of a read | Rarely changed |
+| `--max-flank` | INT | 50 | Maximum length of random cDNA flank at each terminal end of a read | Raise (e.g. 200–300) to cover real ONT adapter-flank lengths and reduce edge false positives |
 
 # Example Usage
 

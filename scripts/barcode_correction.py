@@ -101,7 +101,12 @@ def _has_usable_base_qualities(lazy_df):
 
 def _infer_barcode_columns(columns, whitelist_df, seq_order_file, model_name, seq_orders):
     """Infer barcode column names from seq_orders config or annotation/whitelist column overlap."""
-    if seq_order_file:
+    if seq_order_file or model_name:
+        if seq_order_file is None:
+            import os
+
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            seq_order_file = os.path.join(base_dir, "..", "utils", "seq_orders.yaml")
         _, _, barcodes, _, strand = seq_orders(seq_order_file, model_name)
         if barcodes:
             return barcodes, strand

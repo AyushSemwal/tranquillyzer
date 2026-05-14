@@ -55,7 +55,14 @@ def introduce_errors_with_labels_context(
 ############## generate segments ##############
 
 
-def generate_segment(segment_type, segment_pattern, length_range, transcriptome_records, spacer_range=(0, 50)):
+def generate_segment(
+    segment_type,
+    segment_pattern,
+    length_range,
+    transcriptome_records,
+    spacer_range=(0, 50),
+    flank_range=(0, 50),
+):
     """Generate a random DNA segment matching a pattern specification."""
     if re.match(r"N\d+", segment_pattern):
         length = int(segment_pattern[1:])
@@ -75,9 +82,9 @@ def generate_segment(segment_type, segment_pattern, length_range, transcriptome_
         )
         sequence = fragment
         label = ["cDNA"] * len(sequence)
-    elif segment_pattern == "RN" and segment_type == "cDNA":
-        length = np.random.randint(spacer_range[0], spacer_range[1] + 1)
-        length = min(length, 50)
+    elif segment_pattern in ("RN", "RN_SPACER", "RN_FLANK") and segment_type == "cDNA":
+        lo, hi = flank_range if segment_pattern == "RN_FLANK" else spacer_range
+        length = np.random.randint(lo, hi + 1)
         if length == 0:
             return "", []
         if transcriptome_records:
@@ -100,11 +107,20 @@ def generate_segment(segment_type, segment_pattern, length_range, transcriptome_
 ############## generate valid read ##############
 
 
-def generate_valid_read(segments_order, segments_patterns, length_range, transcriptome_records, spacer_range=(0, 50)):
+def generate_valid_read(
+    segments_order,
+    segments_patterns,
+    length_range,
+    transcriptome_records,
+    spacer_range=(0, 50),
+    flank_range=(0, 50),
+):
     """Assemble a full synthetic read from segment patterns and structure order."""
     read_segments, label_segments = [], []
     for seg_type, seg_pattern in zip(segments_order, segments_patterns):
-        s, labs = generate_segment(seg_type, seg_pattern, length_range, transcriptome_records, spacer_range)
+        s, labs = generate_segment(
+            seg_type, seg_pattern, length_range, transcriptome_records, spacer_range, flank_range
+        )
         read_segments.append(s)
         label_segments.append(labs)
     return "".join(read_segments), [lbl for seg_lbls in label_segments for lbl in seg_lbls]
@@ -139,7 +155,7 @@ def _rc_single_pattern(pattern):
     """Reverse-complement a single element's pattern based on its type."""
     if pattern in ("A", "T"):
         return "T" if pattern == "A" else "A"
-    elif re.match(r"N\d+", pattern) or pattern in ("NN", "RN"):
+    elif re.match(r"N\d+", pattern) or pattern in ("NN", "RN", "RN_SPACER", "RN_FLANK"):
         return pattern
     else:
         return _rc_pattern_str(pattern)
@@ -150,7 +166,7 @@ def _reverse_single_pattern(pattern):
     if pattern in ("A", "T"):
         # Poly patterns unchanged when just reversed
         return pattern
-    elif re.match(r"N\d+", pattern) or pattern in ("NN", "RN"):
+    elif re.match(r"N\d+", pattern) or pattern in ("NN", "RN", "RN_SPACER", "RN_FLANK"):
         return pattern
     else:
         # Literal adapter — reverse the string only (no complement)
@@ -176,7 +192,9 @@ def _transform_pattern(pattern, from_state, to_state):
         # we need to undo the complement: apply complement without reversing.
         return (
             "".join(_RC_COMPLEMENT.get(b, b) for b in pattern)
-            if not (pattern in ("A", "T") or re.match(r"N\d+", pattern) or pattern in ("NN", "RN"))
+            if not (
+                pattern in ("A", "T") or re.match(r"N\d+", pattern) or pattern in ("NN", "RN", "RN_SPACER", "RN_FLANK")
+            )
             else pattern
         )
     elif from_state == "reverse" and to_state == "fwd":
@@ -228,18 +246,21 @@ def _build_structure_order_and_patterns(struct):
     rc_elements = struct.get("rc_elements", {})
 
     if repeat > 1:
-        # Concatenate: repeat the core with cDNA flanks between copies
+        # Concatenate: repeat the core with cDNA flanks between copies.
+        # First and last RN are terminal flanks (RN_FLANK); interior RN between
+        # fragments are chimeric-junction spacers (RN_SPACER).
         full_order = ["cDNA"]
-        full_patterns = ["RN"]
+        full_patterns = ["RN_FLANK"]
         for i in range(repeat):
             frag_order, frag_patterns = _build_fragment(order, patterns, rc_pattern[i], rc_elements)
+            is_last = i == repeat - 1
             full_order.extend(frag_order + ["cDNA"])
-            full_patterns.extend(frag_patterns + ["RN"])
+            full_patterns.extend(frag_patterns + ["RN_FLANK" if is_last else "RN_SPACER"])
     else:
-        # Single structure flanked with random cDNA
+        # Single structure flanked with random cDNA (both ends are terminal flanks)
         frag_order, frag_patterns = _build_fragment(order, patterns, rc_pattern[0], rc_elements)
         full_order = ["cDNA"] + frag_order + ["cDNA"]
-        full_patterns = ["RN"] + frag_patterns + ["RN"]
+        full_patterns = ["RN_FLANK"] + frag_patterns + ["RN_FLANK"]
 
     return full_order, full_patterns
 
@@ -273,6 +294,8 @@ def simulate_dynamic_batch_complete(
     max_trunc_3p=0,
     min_spacer=0,
     max_spacer=50,
+    min_flank=0,
+    max_flank=50,
 ):
     """Simulate a batch of synthetic reads with dynamic length and error profiles."""
     reads, labels, expected_fragments = [], [], []
@@ -285,7 +308,12 @@ def simulate_dynamic_batch_complete(
 
         struct_length_range = struct.get("length_range", length_range)
         sequence, label = generate_valid_read(
-            full_order, full_patterns, struct_length_range, transcriptome_records, spacer_range=(min_spacer, max_spacer)
+            full_order,
+            full_patterns,
+            struct_length_range,
+            transcriptome_records,
+            spacer_range=(min_spacer, max_spacer),
+            flank_range=(min_flank, max_flank),
         )
 
         sequence, label = _maybe_truncate(sequence, label, max_trunc_5p, max_trunc_3p)
@@ -320,7 +348,7 @@ def simulate_and_write_fasta(args):
 
     Args tuple: (num_reads, length_range, mismatch_rate, insertion_rate, deletion_rate,
                  polyT_error_rate, max_insertions, training_structures, transcriptome_records,
-                 rc, max_trunc_5p, max_trunc_3p, min_spacer, max_spacer,
+                 rc, max_trunc_5p, max_trunc_3p, min_spacer, max_spacer, min_flank, max_flank,
                  fasta_path, start_idx)
     """
     *sim_args, fasta_path, start_idx = args
@@ -340,6 +368,8 @@ def simulate_and_write_fasta(args):
         max_trunc_3p,
         min_spacer,
         max_spacer,
+        min_flank,
+        max_flank,
     ) = sim_args
 
     labels, expected_fragments, structure_names = [], [], []
@@ -360,6 +390,7 @@ def simulate_and_write_fasta(args):
                 struct_length_range,
                 transcriptome_records,
                 spacer_range=(min_spacer, max_spacer),
+                flank_range=(min_flank, max_flank),
             )
             sequence, label = _maybe_truncate(sequence, label, max_trunc_5p, max_trunc_3p)
 
@@ -407,6 +438,8 @@ def generate_training_reads(
     max_trunc_3p=0,
     min_spacer=0,
     max_spacer=50,
+    min_flank=0,
+    max_flank=50,
 ):
     """Generate a full set of synthetic training reads and labels."""
     # Convert BioPython SeqRecords to plain strings for fast pickling across workers
@@ -434,6 +467,8 @@ def generate_training_reads(
             max_trunc_3p,
             min_spacer,
             max_spacer,
+            min_flank,
+            max_flank,
         )
         for chunk_size in chunks
     ]

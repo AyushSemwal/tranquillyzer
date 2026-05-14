@@ -10,6 +10,7 @@ SIM_DIR = Path("tests/10x3p")
 BARCODES = Path("tests/10x3p/barcodes.tsv")
 REF_FASTA = Path("tests/references/hg38_gencode_chr21.fa")
 REF_GTF = Path("tests/references/hg38_gencode_chr21.gtf")
+BED12 = Path("tests/references/hg38.HouseKeepingGenes.bed.gz")
 transcriptome = Path("tests/references/")
 MODELS_DIR = Path("models")
 THREADS = 1
@@ -271,6 +272,8 @@ def test_qc_metrics_with_bam():
             f"{OUT_DIR}/featurecounts_out/counts_matrix.tsv",
             "--gtf",
             REF_GTF,
+            "--gene-body-bed",
+            BED12,
             "--threads",
             THREADS,
         ]

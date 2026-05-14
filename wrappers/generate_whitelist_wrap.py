@@ -6,6 +6,8 @@ extracted from annotation outputs, without re-running the annotation pass.
 
 import logging
 import os
+import resource
+import time
 from collections import Counter
 
 import polars as pl
@@ -159,7 +161,7 @@ def _count_barcodes_from_files(files, barcode_columns, chunk_size):
 
 def generate_whitelist_wrap(
     output_dir,
-    model_name="10x3p_sc_ont_011",
+    model_name="10x3p_sc_ont_016",
     seq_order_file=None,
     input_file=None,
     barcode_columns_str=None,
@@ -196,7 +198,12 @@ def generate_whitelist_wrap(
     str
         Path to the generated discovered_whitelist.tsv.
     """
+    start = time.time()
     # Step 1: Resolve barcode columns
+    if barcode_columns_str:
+        logger.info(f"Using --barcode-columns override: {barcode_columns_str} (model_name '{model_name}' not used)")
+    else:
+        logger.info(f"Using model: {model_name} (seq_orders: {seq_order_file or '<bundled>'})")
     barcodes, seq_order, sequences = _resolve_barcode_columns(barcode_columns_str, model_name, seq_order_file)
     logger.info(f"Barcode columns: {barcodes}")
 
@@ -217,6 +224,7 @@ def generate_whitelist_wrap(
         global_counts,
         barcodes,
         output_dir,
+        model_name,
         expected_cells=expected_cells,
         min_reads=min_reads_per_barcode,
         min_cell_ratio=min_cell_ratio,
@@ -225,4 +233,11 @@ def generate_whitelist_wrap(
 
     whitelist_path = os.path.join(output_dir, "annotation_metadata", "discovered_whitelist.tsv")
     logger.info(f"Whitelist generated: {whitelist_path} ({len(whitelist_df)} barcodes)")
+
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")
     return whitelist_path
