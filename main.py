@@ -281,7 +281,7 @@ def visualize(
         "full_read_annots",
         help="Output PDF base name (extension [cyan].pdf[/cyan] is added automatically).",
     ),
-    model_name: str = typer.Option("10x3p_sc_ont_013", help=_HELP_MODEL_NAME),
+    model_name: str = typer.Option("10x3p_sc_ont_016", help=_HELP_MODEL_NAME),
     seq_order_file: str = typer.Option(None, help=_HELP_SEQ_ORDER_FILE),
     models_dir: str = typer.Option(None, "--models-dir", help=_HELP_MODELS_DIR),
     gpu_mem: Annotated[str, typer.Option(help=_HELP_GPU_MEM)] = None,
@@ -349,7 +349,7 @@ def visualize(
 def annotate_reads(
     output_dir: str,
     preprocess_dir: str = typer.Option(None, "--preprocess-dir", help=_HELP_PREPROCESS_DIR, rich_help_panel="General"),
-    model_name: str = typer.Option("10x3p_sc_ont_013", help=_HELP_MODEL_NAME, rich_help_panel="Model"),
+    model_name: str = typer.Option("10x3p_sc_ont_016", help=_HELP_MODEL_NAME, rich_help_panel="Model"),
     seq_order_file: str = typer.Option(None, help=_HELP_SEQ_ORDER_FILE, rich_help_panel="Model"),
     models_dir: str = typer.Option(None, "--models-dir", help=_HELP_MODELS_DIR, rich_help_panel="Model"),
     gpu_mem: Annotated[str, typer.Option(help=_HELP_GPU_MEM, rich_help_panel="GPU & Batching")] = None,
@@ -574,7 +574,7 @@ def barcode_correct(
     ),
     seq_order_file: str = typer.Option(None, help=_HELP_SEQ_ORDER_FILE, rich_help_panel="Model"),
     model_name: str = typer.Option(
-        "10x3p_sc_ont_013",
+        "10x3p_sc_ont_016",
         help="Model name used to resolve barcode column order from seq_orders.yaml.",
         rich_help_panel="Model",
     ),
@@ -662,7 +662,7 @@ def generate_whitelist(
         ...,
         help="Annotation output directory (containing annotation_chunks/ or annotation_metadata/).",
     ),
-    model_name: str = typer.Option("10x3p_sc_ont_013", help=_HELP_MODEL_NAME),
+    model_name: str = typer.Option("10x3p_sc_ont_016", help=_HELP_MODEL_NAME),
     seq_order_file: str = typer.Option(None, help=_HELP_SEQ_ORDER_FILE),
     input_file: str = typer.Option(
         None,
@@ -822,7 +822,7 @@ def qc_metrics(
     ),
     bam: str = typer.Option(
         None,
-        help="Dup-marked BAM with CB/UB tags. Enables saturation, mapping rate, duplication, and gene body coverage (with [cyan]--gtf[/cyan]) plots.",
+        help="Dup-marked BAM with CB/UB tags. Enables saturation, mapping rate, duplication, and gene body coverage (with [cyan]--gene-body-bed[/cyan]) plots.",
         rich_help_panel="Alignment & Gene Quantification",
     ),
     counts_matrix: str = typer.Option(
@@ -832,7 +832,17 @@ def qc_metrics(
     ),
     gtf: str = typer.Option(
         None,
-        help="GTF annotation (e.g. GENCODE). Required with [cyan]--counts-matrix[/cyan]; also enables gene body coverage with [cyan]--bam[/cyan].",
+        help="GTF annotation (e.g. GENCODE). Required with [cyan]--counts-matrix[/cyan].",
+        rich_help_panel="Alignment & Gene Quantification",
+    ),
+    gene_body_bed: str = typer.Option(
+        None,
+        help=(
+            "BED12 file (plain or [cyan].gz[/cyan]) for gene body coverage, RSeQC-style.\n\n"
+            "Required to enable the gene body coverage plot; without it the plot is skipped. "
+            "Recommended sources: RSeQC HouseKeepingGenes.bed[.gz], a MANE_Select export, "
+            "or any one-transcript-per-gene BED12."
+        ),
         rich_help_panel="Alignment & Gene Quantification",
     ),
 ):
@@ -858,7 +868,7 @@ def qc_metrics(
      12) Unique UMIs per cell (requires --bam).
      13) Mapping rate per cell (requires --bam).
      14) Duplicate rate per cell (requires --bam).
-     15) Gene body coverage profile (requires --bam + --gtf).
+     15) Gene body coverage profile (requires --bam + --gene-body-bed).
      16) Genes per cell (requires --counts-matrix + --gtf).
      17) UMIs per cell (requires --counts-matrix + --gtf).
      18) Mitochondrial % per cell (requires --counts-matrix + --gtf).
@@ -894,6 +904,7 @@ def qc_metrics(
         counts_matrix=counts_matrix,
         gtf=gtf,
         threads=threads,
+        gene_body_bed=gene_body_bed,
     )
 
 
@@ -1205,6 +1216,16 @@ def simulate_data(
         help="Maximum length of random cDNA spacer between concatenated read fragments.",
         rich_help_panel="Read Structure",
     ),
+    min_flank: int = typer.Option(
+        0,
+        help="Minimum length of random cDNA flank at each terminal end of a read.",
+        rich_help_panel="Read Structure",
+    ),
+    max_flank: int = typer.Option(
+        50,
+        help="Maximum length of random cDNA flank at each terminal end of a read. Raise above the 50bp default to cover real ONT adapter-flank lengths.",
+        rich_help_panel="Read Structure",
+    ),
 ):
     """
     Generate synthetic labeled reads for training, and serialize to PKL.
@@ -1255,6 +1276,8 @@ def simulate_data(
         max_trunc_3p,
         min_spacer,
         max_spacer,
+        min_flank,
+        max_flank,
     )
 
 
@@ -1465,6 +1488,16 @@ def assess_model(
         help="Maximum length of random cDNA spacer between concatenated read fragments.",
         rich_help_panel="Read Structure",
     ),
+    min_flank: int = typer.Option(
+        0,
+        help="Minimum length of random cDNA flank at each terminal end of a read.",
+        rich_help_panel="Read Structure",
+    ),
+    max_flank: int = typer.Option(
+        50,
+        help="Maximum length of random cDNA flank at each terminal end of a read. Raise above the 50bp default to cover real ONT adapter-flank lengths.",
+        rich_help_panel="Read Structure",
+    ),
     bin_size: int = typer.Option(
         500, help="Bin width (bp) for length-binning assessment reads.", rich_help_panel="Read Structure"
     ),
@@ -1527,6 +1560,8 @@ def assess_model(
         max_trunc_3p,
         min_spacer,
         max_spacer,
+        min_flank,
+        max_flank,
         bin_size,
         max_read_length,
         gpu_mem,

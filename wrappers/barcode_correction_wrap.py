@@ -1,8 +1,10 @@
 import logging
 import os
 import queue
+import resource
 import shutil
 import threading
+import time
 
 import pandas as pd
 
@@ -255,6 +257,9 @@ def barcode_correction_wrap(
     )
     from scripts.trained_models import seq_orders
 
+    logger.info(f"Using model: {model_name} (seq_orders: {seq_order_file})")
+
+    start = time.time()
     os.makedirs(output_dir, exist_ok=True)
 
     multi_file_input = isinstance(input_file, list)
@@ -635,7 +640,8 @@ def barcode_correction_wrap(
         from utils import get_version
 
         pl.scan_csv(chunk_paths, separator="\t", infer_schema_length=5000).with_columns(
-            pl.lit(get_version()).alias("tranquillyzer_version")
+            pl.lit(get_version()).alias("tranquillyzer_version"),
+            pl.lit(model_name).alias("model_name"),
         ).sink_parquet(corrected_parquet_tmp, compression="snappy")
 
     # Cleanup
@@ -658,3 +664,10 @@ def barcode_correction_wrap(
         os.remove(legacy_tsv)
 
     logger.info(f"Wrote corrected annotations to {corrected_parquet}")
+
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

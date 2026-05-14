@@ -69,13 +69,14 @@ def annotate_reads_wrap(
         estimate_average_read_length_from_bin,
         calculate_total_rows,
         convert_tsv_to_parquet,
-        log_gpus_used,
+        log_gpus_detected,
     ) = load_libs()
 
     start = time.time()
 
-    # Let user know whether they're running on CPU only or GPU (provided handles if so)
-    log_gpus_used()
+    # Report physical GPU detection up front; actual in-use count is logged
+    # later from inside load_model_for_inference once the strategy is resolved.
+    log_gpus_detected()
 
     # Read / create / prepare input files and directories
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -85,6 +86,8 @@ def annotate_reads_wrap(
     models_dir = os.path.abspath(models_dir)
     if not os.path.isdir(models_dir):
         raise FileNotFoundError(f"Model directory not found: {models_dir}")
+
+    logger.info(f"Using model: {model_name} (models_dir: {models_dir})")
 
     utils_dir = os.path.join(base_dir, "utils")
     utils_dir = os.path.abspath(utils_dir)
@@ -339,6 +342,12 @@ def annotate_reads_wrap(
     if min_batch_size < min_batch_from_model:
         min_batch_size = min_batch_from_model
 
+    # Shared mutable state so model_predictions only rebuilds on genuine
+    # strategy flips, even across bins. Without this, every bin entered
+    # `model_predictions` with the original MirroredStrategy model and
+    # rebuilt it back to single-device from scratch on every small bin.
+    model_state = {"model": model, "using_strategy": strategy is not None}
+
     task_queue = mp.Queue(maxsize=max_queue_size)
     result_queue = mp.Queue()
     count = mp.Value("i", 0)
@@ -392,7 +401,7 @@ def annotate_reads_wrap(
                     parquet_file,
                     chunk_start_local,
                     chunk_size,
-                    model,
+                    model_state,
                     model_path,
                     strategy,
                     params,
@@ -410,14 +419,34 @@ def annotate_reads_wrap(
             if queued_chunks == 0:
                 logger.info("No pending chunks found. Dataset is already annotated.")
     except Exception as e:
-        # Wind down queues, close workers when done, print error and exit
+        # HARDENING: force-terminate workers with a bounded timeline rather
+        # than worker.join() with no timeout. If a worker is stuck in a CUDA
+        # or NCCL call, an unbounded join hangs until SLURM's cgroup manager
+        # SIGKILLs the whole job. SIGKILL mid-NCCL-collective is a classic
+        # way to leave the NCCL ring / driver state corrupt across jobs on
+        # the same node. Bounded shutdown keeps the driver clean.
         for _ in range(threads):
             task_queue.put(None)
 
         _empty_results_queue(result_queue, workers)
+
         for worker in workers:
-            worker.join()
-            worker.close()
+            worker.join(timeout=5)
+        for worker in workers:
+            if worker.is_alive():
+                logger.warning(f"Worker {worker.pid} still alive after 5s — sending SIGTERM")
+                worker.terminate()
+                worker.join(timeout=2)
+        for worker in workers:
+            if worker.is_alive():
+                logger.error(f"Worker {worker.pid} still alive after SIGTERM — sending SIGKILL")
+                worker.kill()
+                worker.join(timeout=2)
+        for worker in workers:
+            try:
+                worker.close()
+            except ValueError:
+                pass  # Process handle still open; safe to ignore in this fallback path.
 
         logger.error(
             f"Error found while annotating: {e}. Resume from the last checkpoint by re-running with resume enabled. Exiting!"
@@ -477,6 +506,7 @@ def annotate_reads_wrap(
             run_barcode_correction,
             pl,
             chunk_size,
+            model_name,
         )
 
     if run_demux:
@@ -494,7 +524,9 @@ def annotate_reads_wrap(
         if os.path.isdir(chunk_output_dir):
             shutil.rmtree(chunk_output_dir, ignore_errors=True)
 
-    usage = resource.getrusage(resource.RUSAGE_CHILDREN)
-    max_rss_mb = usage.ru_maxrss / 1024 if os.uname().sysname == "Linux" else usage.ru_maxrss  # Linux gives KB
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
     logger.info(f"Peak memory usage during annotation pipeline: {max_rss_mb:.2f} MB")
     logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

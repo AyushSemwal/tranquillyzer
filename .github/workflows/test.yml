@@ -37,11 +37,12 @@ jobs:
         shell: bash -l {0}
         run: |
          mkdir -p tests/10x3p/data tests/references
-         curl -L "https://www.dropbox.com/scl/fi/k18rs7icrw7la7ogoi9bh/10x3p_sc_ont_013.h5?rlkey=ssw6ylhpvwe3e96jmwm0j3pzg&st=5byhrx7t&dl=0" -o models/10x3p_sc_ont_013.h5
-         curl -L "https://www.dropbox.com/scl/fi/2plk01thb9q1o8gqgmgks/10x3p_sc_ont_013_params.yaml?rlkey=twtqwmpsyv6ecqeh7a2c5k6tx&dl=0" -o models/10x3p_sc_ont_013_params.yaml
-         curl -L "https://www.dropbox.com/scl/fi/inz070k8k7kfpibnj9lkt/10x3p_sc_ont_013_lbl_bin.pkl?rlkey=pwhonyomb3i4d13yjat8cxpro&dl=0" -o models/10x3p_sc_ont_013_lbl_bin.pkl
+         curl -L "https://www.dropbox.com/scl/fi/gmmifxp964fe66qvv3nfk/10x3p_sc_ont_016.h5?rlkey=vqqob3hxrqsuq8540su1aw985&st=bwk2kblf&dl=0" -o models/10x3p_sc_ont_016.h5
+         curl -L "https://www.dropbox.com/scl/fi/7almukao9vykewf4p73eg/10x3p_sc_ont_016_params.yaml?rlkey=ge8fhouxvvya3umlzryk8mvtq&st=zn01vxqc&dl=0" -o models/10x3p_sc_ont_016_params.yaml
+         curl -L "https://www.dropbox.com/scl/fi/4wvup62v1sgh7v84899ud/10x3p_sc_ont_016_lbl_bin.pkl?rlkey=m0xt4vzdpfc0ztj91zw93ko8p&st=y5skyjsq&dl=0" -o models/10x3p_sc_ont_016_lbl_bin.pkl
          curl -L "https://www.dropbox.com/scl/fi/9203pc2gz45u419kze446/hg38_gencode_chr21.fa?rlkey=k1co80pso7zsvb8oiqqc1o1dy&st=e0e92h5h&dl=1" -o tests/references/hg38_gencode_chr21.fa
          curl -L "https://www.dropbox.com/scl/fi/9zvh26moro7frfho818ko/hg38_gencode_chr21.gtf?rlkey=v3s05m9ap3srpjhvl5yfjfeq7&st=hn6mufoq&dl=0" -o tests/references/hg38_gencode_chr21.gtf
+         curl -L "https://www.dropbox.com/scl/fi/98ykmaori9zrqf0q1qn36/hg38.HouseKeepingGenes.bed.gz?rlkey=dqjabcby9b9owso30njfpauyt&st=zmvxk4pp&dl=0" -o tests/references/hg38.HouseKeepingGenes.bed.gz
 
       - name: Run Pytest with coverage
         shell: bash -l {0}

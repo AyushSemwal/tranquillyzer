@@ -5,9 +5,10 @@ First `import available_gpus` call sets up all functions within module and makes
 them available to call. All imports of available_gpus will retain the same
 values within a single run of tranquillyzer.
 
-TODO: This entire module is currently set up under the premise that all GPUs
-will available will be used. When this gets changed, this module will need
-reworked accordingly.
+Detection vs. actual usage are reported separately:
+- :func:`log_gpus_detected` reports what TensorFlow physically sees.
+- :func:`log_gpus_in_use` reports how many / which of those the current command
+  will actually run on (callers pass the resolved distribution strategy).
 """
 
 import logging
@@ -51,14 +52,33 @@ def gpus_to_visible_devices_string():
     return ",".join(map(str, range(n_gpus())))
 
 
-def log_gpus_used():
-    """Adds log message about which GPUs are used."""
-    # TODO: This may need to be updated if/when user is allowed to choose which
-    #       GPUs to run with
+def log_gpus_detected():
+    """Log how many physical GPUs TensorFlow sees. Makes no claim about usage."""
     if n_gpus() > 0:
-        logger.info(f"GPUs detected - running on {n_gpus()} GPUS (names: {', '.join(get_gpu_names_clean())})")
+        logger.info(f"GPUs detected: {n_gpus()} ({', '.join(get_gpu_names_clean())})")
     else:
-        logger.info("No GPUs detected - running in CPU-only mode")
+        logger.info("No GPUs detected")
+
+
+def log_gpus_in_use(strategy=None):
+    """Log how many GPUs the current command will actually run on.
+
+    Pass the distribution *strategy* the caller resolved (``MirroredStrategy``
+    when training/inferring across multiple GPUs, ``None`` for single-device
+    or CPU paths). The message distinguishes the multi-GPU strategy case from
+    a single-device run, and from CPU-only mode.
+    """
+    names = get_gpu_names_clean()
+    total = n_gpus()
+    if total == 0:
+        logger.info("Running in CPU-only mode")
+        return
+    if strategy is not None:
+        n = int(getattr(strategy, "num_replicas_in_sync", total))
+        used_names = names[:n] if n <= len(names) else names
+        logger.info(f"Running on {n} GPU(s) via MirroredStrategy: {', '.join(used_names)}")
+    else:
+        logger.info(f"Running on 1 of {total} detected GPU(s): {names[0]}")
 
 
 def available_gpus():

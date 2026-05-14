@@ -146,6 +146,8 @@ pannable plots with hover tooltips. This is the primary artifact for reviewing m
 | `--transcriptome` | TEXT | None | Transcriptome FASTA for realistic cDNA | Recommended for realistic assessment |
 | `--min-spacer` | INT | 0 | Minimum spacer length between concatenated fragments | Adjust if your data has inter-fragment cDNA |
 | `--max-spacer` | INT | 50 | Maximum spacer length between concatenated fragments | Adjust if your data has inter-fragment cDNA |
+| `--min-flank` | INT | 0 | Minimum length of random cDNA flank at each terminal end of a read | Rarely changed |
+| `--max-flank` | INT | 50 | Maximum length of random cDNA flank at each terminal end of a read | Raise (e.g. 200–300) to cover real ONT adapter-flank lengths and reduce edge false positives |
 | `--max-trunc-5p` | INT | 0 | Max 5' truncation (bp) | Enable to test truncated read handling |
 | `--max-trunc-3p` | INT | 0 | Max 3' truncation (bp) | Enable to test truncated read handling |
 | `--threads` | INT | 2 | CPU threads | Increase for faster simulation |
@@ -162,7 +164,7 @@ pannable plots with hover tooltips. This is the primary artifact for reviewing m
 
 ```bash
 tranquillyzer assess-model \
-    10x3p_sc_ont_013 \
+    10x3p_sc_ont_016 \
     models/ \
     assessment_output/ \
     --num-reads 500 \

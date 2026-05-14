@@ -11,6 +11,8 @@ def demux_wrap(
 ):
     """Export demultiplexed reads to FASTA/FASTQ from annotation files."""
     import os
+    import time
+    import resource
 
     from scripts.export_demux import (
         _load_df,
@@ -20,6 +22,8 @@ def demux_wrap(
         _write_from_demux_columns,
         _write_bulk_from_annotations,
     )
+
+    start = time.time()
 
     if input_file is None:
         metadata_dir = f"{input_dir}/annotation_metadata"
@@ -68,3 +72,10 @@ def demux_wrap(
 
     _gzip_file(demuxed_path)
     _gzip_file(ambiguous_path)
+
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

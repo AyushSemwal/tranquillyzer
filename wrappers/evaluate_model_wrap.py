@@ -24,6 +24,8 @@ def evaluate_model_wrap(
     max_trunc_3p,
     min_spacer,
     max_spacer,
+    min_flank,
+    max_flank,
     bin_size,
     max_read_length,
     gpu_mem,
@@ -39,6 +41,8 @@ def evaluate_model_wrap(
     import json
     import os
     import random
+    import resource
+    import time
 
     import numpy as np
     import polars as pl
@@ -59,6 +63,8 @@ def evaluate_model_wrap(
 
     __version__ = get_version()
 
+    start = time.time()
+
     # ── resolve paths ──
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -73,6 +79,8 @@ def evaluate_model_wrap(
     model_dir = os.path.abspath(model_dir)
     output_dir = os.path.abspath(output_dir)
     os.makedirs(output_dir, exist_ok=True)
+
+    logger.info(f"Using model: {model_name} (model_dir: {model_dir})")
 
     # ── load model config ──
 
@@ -106,15 +114,15 @@ def evaluate_model_wrap(
             for pat in s["patterns"]:
                 if re.match(r"N\d+", pat):
                     fixed_per_frag += int(pat[1:])
-                elif pat in ("NN", "RN"):
-                    pass  # variable length — cDNA or spacer
+                elif pat in ("NN", "RN", "RN_SPACER", "RN_FLANK"):
+                    pass  # variable length — cDNA, spacer, or terminal flank
                 elif pat in ("A", "T"):
                     fixed_per_frag += 25  # estimated polyA/T average
                 else:
                     fixed_per_frag += len(pat)  # literal adapter
 
-            # Spacer cDNA flanks: (repeat + 1) spacers at avg max_spacer/2
-            spacer_overhead = (repeat + 1) * max_spacer
+            # Two terminal flanks (RN_FLANK) + (repeat - 1) interior spacers (RN_SPACER)
+            spacer_overhead = 2 * max_flank + max(0, repeat - 1) * max_spacer
             total_fixed = fixed_per_frag * repeat + spacer_overhead
             available_for_cdna = max_read_length - total_fixed
             effective_max_cdna = max(min_cDNA, available_for_cdna // repeat)
@@ -199,6 +207,8 @@ def evaluate_model_wrap(
                     max_trunc_3p,
                     min_spacer,
                     max_spacer,
+                    min_flank,
+                    max_flank,
                     fasta_path,
                     start_idx,
                 )
@@ -328,3 +338,10 @@ def evaluate_model_wrap(
         )
 
     logger.info(f"Assessment complete. Results in {metrics_dir}/")
+
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

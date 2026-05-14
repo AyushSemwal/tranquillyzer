@@ -63,6 +63,19 @@ def _count_rows(path):
     return pl.scan_parquet(path).select(pl.len()).collect()[0, 0]
 
 
+_QC_MODEL_NAME = None
+
+
+def _set_qc_model_name(model_name):
+    """Set the model name to be written in QC artifact headers.
+
+    Called once by the wrapper before plot functions run. Used by
+    ``_write_tsv`` to emit a ``# model_name:`` header in plot-data TSVs.
+    """
+    global _QC_MODEL_NAME
+    _QC_MODEL_NAME = model_name
+
+
 def _write_tsv(tsv_dir, filename, df):
     """Write a Polars DataFrame as a TSV file into *tsv_dir*."""
     if tsv_dir is None:
@@ -73,6 +86,7 @@ def _write_tsv(tsv_dir, filename, df):
 
     with open(path, "w") as fh:
         fh.write(f"# tranquillyzer_version: {get_version()}\n")
+        fh.write(f"# model_name: {_QC_MODEL_NAME}\n")
         fh.write(df.write_csv(separator="\t"))
 
 
@@ -374,7 +388,7 @@ def _build_row_figure(row, n_cols, shared_yaxes=False):
     return combined
 
 
-def _write_html_report(path, row_figs, sample_name):
+def _write_html_report(path, row_figs, sample_name, model_name):
     """
     Combine per-row Plotly figures into a single self-contained HTML file.
     Plotly.js is loaded once via CDN; each figure renders with its own modebar.
@@ -396,14 +410,17 @@ def _write_html_report(path, row_figs, sample_name):
         )
 
     page_title = f"Tranquillyzer v{__version__} QC Report \u2014 {sample_name}"
+    subtitle = f"Model: {model_name}"
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(
             "<!DOCTYPE html><html>"
-            f"<head><meta charset='utf-8'><meta name='generator' content='tranquillyzer v{__version__}'><style>"
+            f"<head><meta charset='utf-8'><meta name='generator' content='tranquillyzer v{__version__}'>"
+            f"<meta name='tranquillyzer-model' content='{model_name}'><style>"
             "body{background:#f5f7fa;font-family:Arial,sans-serif;margin:0;padding:16px}"
-            "h1{text-align:center;font-size:18px;color:#333;margin:0 0 8px}"
+            "h1{text-align:center;font-size:18px;color:#333;margin:0 0 4px}"
+            "h2{text-align:center;font-size:13px;color:#666;font-weight:normal;margin:0 0 12px}"
             "</style></head>"
-            f"<body><h1>{page_title}</h1>"
+            f"<body><h1>{page_title}</h1><h2>{subtitle}</h2>"
         )
         for fig_html in html_figs:
             fh.write(
@@ -2331,17 +2348,21 @@ def _plot_segment_lengths(valid_path, vcols, tsv_dir=None):
 
 
 def _bam_awk_prog():
-    """Return the awk program used to extract fields from SAM records."""
+    """Return the awk program used to extract fields from SAM records.
+
+    Uses three ``index($0, "\\tTAG:Z:")`` lookups + substring-to-next-tab
+    instead of iterating ``for(i=12;i<=NF;i++)``. Scans the line at most
+    three times regardless of tag count — ~3.6× faster than field-walk
+    on ONT BAMs (which carry many aux tags per record). Output schema
+    is unchanged: ``qname \\t flag \\t cb \\t umi \\t dt``.
+    """
     return (
         'BEGIN{OFS="\\t"}'
         "{"
         '  cb=""; ub=""; dt="";'
-        "  for(i=12;i<=NF;i++){"
-        "    t=substr($i,1,5);"
-        '    if(t=="CB:Z:") cb=substr($i,6);'
-        '    else if(t=="UB:Z:") ub=substr($i,6);'
-        '    else if(t=="DT:Z:") dt=substr($i,6)'
-        "  };"
+        '  i=index($0,"\\tCB:Z:"); if(i){cb=substr($0,i+6); j=index(cb,"\\t"); if(j) cb=substr(cb,1,j-1)}'
+        '  i=index($0,"\\tUB:Z:"); if(i){ub=substr($0,i+6); j=index(ub,"\\t"); if(j) ub=substr(ub,1,j-1)}'
+        '  i=index($0,"\\tDT:Z:"); if(i){dt=substr($0,i+6); j=index(dt,"\\t"); if(j) dt=substr(dt,1,j-1)}'
         "  print $1,$2,cb,ub,dt"
         "}"
     )
@@ -2407,12 +2428,20 @@ def _partition_references(bam_path, n_buckets):
     Use ``samtools idxstats`` to partition reference sequences into balanced
     buckets by read count (greedy largest-first bin packing).
 
+    Any reference whose mapped+unmapped count exceeds the per-bucket target
+    (``total // n_buckets``) is sub-split into multiple ``chrom:start-end``
+    region strings so a single huge reference (e.g. chrM at ~19% of total
+    alignments) doesn't stall one worker while others finish early. samtools
+    accepts these region strings via the BAI index, so the worker code is
+    untouched.
+
     Returns
     -------
     list[list[str]]
-        Each inner list is a group of reference names for one worker.
+        Each inner list is a group of region strings for one worker.
         A final empty list ``[]`` is appended for unmapped reads.
     """
+    import math
     import subprocess
     import shlex
 
@@ -2425,27 +2454,49 @@ def _partition_references(bam_path, n_buckets):
     if result.returncode != 0:
         raise RuntimeError(f"samtools idxstats failed: {result.stderr}")
 
-    refs = []  # (name, mapped + unmapped count)
+    raw_refs = []  # (name, length, count)
     for line in result.stdout.strip().splitlines():
         parts = line.split("\t")
         if parts[0] == "*":
             continue
+        ref_len = int(parts[1])
         count = int(parts[2]) + int(parts[3])
         if count > 0:
-            refs.append((parts[0], count))
+            raw_refs.append((parts[0], ref_len, count))
+
+    if not raw_refs:
+        return [[]]
+
+    total = sum(c for _, _, c in raw_refs)
+    target = max(1, total // n_buckets)
+
+    # Sub-split refs that exceed the per-bucket target into ceil(count/target)
+    # equally-sized coordinate windows. samtools regions are 1-based inclusive.
+    refs = []  # (region_str, count)
+    for name, ref_len, count in raw_refs:
+        if count <= target or ref_len <= 1:
+            refs.append((name, count))
+            continue
+        n_chunks = max(2, math.ceil(count / target))
+        chunk_len = max(1, math.ceil(ref_len / n_chunks))
+        synthetic = max(1, count // n_chunks)
+        for k in range(n_chunks):
+            start = k * chunk_len + 1
+            end = min((k + 1) * chunk_len, ref_len)
+            if start > ref_len:
+                break
+            refs.append((f"{name}:{start}-{end}", synthetic))
 
     # sort descending by count for greedy packing
     refs.sort(key=lambda x: x[1], reverse=True)
 
     buckets = [[] for _ in range(n_buckets)]
     bucket_sizes = [0] * n_buckets
-    for name, count in refs:
-        # put into lightest bucket
+    for region, count in refs:
         idx = bucket_sizes.index(min(bucket_sizes))
-        buckets[idx].append(name)
+        buckets[idx].append(region)
         bucket_sizes[idx] += count
 
-    # remove empty buckets, add unmapped bucket
     partitions = [b for b in buckets if b]
     partitions.append([])  # empty list signals unmapped reads
     return partitions
@@ -2485,12 +2536,22 @@ def _collect_bam_per_cell_stats(bam_path, threads=4):
 
     if threads > 1 and has_index:
         # --- parallel region-based scan ---
-        # Cap workers: too many concurrent samtools processes thrash disk I/O
-        n_workers = min(threads, 8)
+        # Split --threads between concurrent BAI random-access streams
+        # (n_workers) and per-stream samtools decompression threads
+        # (sam_threads). On networked filesystems (e.g. GPFS), 8 concurrent
+        # random-access samtools processes thrash the disk; 4 streams with
+        # 4 decompression threads each gets equivalent CPU with much less
+        # I/O contention. samtools rarely benefits beyond 4 threads, so cap
+        # there. Total CPU = n_workers * sam_threads ≤ threads.
+        n_workers = min(threads, 4)
+        sam_threads = max(1, min(4, threads // n_workers))
         partitions = _partition_references(bam_path, n_workers)
-        logger.info(f"  Parallel BAM scan: {len(partitions)} region groups across {n_workers} workers")
+        logger.info(
+            f"  Parallel BAM scan: {len(partitions)} region groups across "
+            f"{n_workers} workers (samtools -@{sam_threads} per worker)"
+        )
         with ThreadPoolExecutor(max_workers=n_workers) as pool:
-            futures = [pool.submit(_scan_bam_regions, str(bam_path), regions, 1) for regions in partitions]
+            futures = [pool.submit(_scan_bam_regions, str(bam_path), regions, sam_threads) for regions in partitions]
             dfs = [f.result() for f in futures]
         df = pl.concat([d for d in dfs if d.height > 0], how="vertical")
     else:
@@ -3655,149 +3716,192 @@ def _resolve_chrom_mapping(gtf_chroms, bam_references):
     return mapping
 
 
-def _build_gene_percentiles(gtf_path, n_bins=100, min_mRNA_length=100):
+def _build_gene_percentiles_from_bed(bed_path, n_bins=100, min_mRNA_length=100):
     """
-    Parse GTF and build 100 percentile positions per gene (RSeQC-style).
+    Parse a BED12 file and build *n_bins* percentile positions per record (RSeQC-style).
 
-    For each gene, picks the longest transcript, collects all exonic base
-    positions (1-based genomic coordinates) in 5'→3' order, and samples
-    *n_bins* evenly-spaced percentile points.
+    Each BED12 line is treated as one transcript (RSeQC convention — no per-gene
+    auto-picking). The user is expected to supply a curated BED (e.g. RSeQC's
+    ``HouseKeepingGenes.bed``, a MANE_Select export, or any one-transcript-per-gene
+    BED12). Both plain and gzipped (``.gz`` / ``.bgz``) inputs are accepted.
+
+    BED12 columns used: chrom (0), chromStart (1, 0-based), name (3), strand (5),
+    blockCount (9), blockSizes (10, comma-separated), blockStarts (11, comma-separated
+    offsets from chromStart). Exonic base positions are emitted as 1-based to match
+    the existing pileup convention.
 
     Returns
     -------
     dict
-        ``{gene_id: (chrom, strand, [100 genomic positions])}``
+        ``{name: (chrom, strand, [n_bins genomic positions])}``. Duplicate names
+        get a counter suffix so each line is preserved independently.
     """
-    from collections import defaultdict
-    import HTSeq
+    import gzip
 
-    tx_exons = defaultdict(list)
-    tx_gene = {}
-    gtf = HTSeq.GFF_Reader(gtf_path)
-    for feat in gtf:
-        if feat.type != "exon":
-            continue
-        tid = feat.attr.get("transcript_id", "").strip()
-        gid = _strip_gene_version(feat.attr.get("gene_id", "").strip())
-        if not tid or not gid:
-            continue
-        tx_exons[tid].append((feat.iv.chrom, feat.iv.strand, feat.iv.start, feat.iv.end))
-        tx_gene[tid] = gid
-
-    # Pick longest transcript per gene
-    best_tid_by_gene = {}
-    best_len_by_gene = {}
-    for tid, exs in tx_exons.items():
-        if not exs:
-            continue
-        total_len = sum(e - s for _, _, s, e in exs)
-        gid = tx_gene.get(tid)
-        if gid is None:
-            continue
-        if gid not in best_len_by_gene or total_len > best_len_by_gene[gid]:
-            best_len_by_gene[gid] = total_len
-            best_tid_by_gene[gid] = tid
-
+    opener = gzip.open if bed_path.endswith((".gz", ".bgz")) else open
     g_percentiles = {}
-    for gid, tid in best_tid_by_gene.items():
-        exs = tx_exons[tid]
-        chrom = exs[0][0]
-        strand = exs[0][1]
-        # Sort exons by genomic position (ascending) — always, regardless of strand
-        exs_sorted = sorted(exs, key=lambda x: x[2])
-        # Collect all exonic base positions (1-based, like RSeQC) in ascending genomic order
-        gene_all_base = []
-        for _, _, start, end in exs_sorted:
-            gene_all_base.extend(range(start + 1, end + 1))
-        if len(gene_all_base) < min_mRNA_length:
-            continue
-        # Pick n_bins percentile positions (equivalent to mystat.percentile_list)
-        # Positions always in ascending genomic order; strand reversal happens after pileup
-        idx = np.linspace(0, len(gene_all_base) - 1, num=n_bins).astype(int)
-        positions = [gene_all_base[i] for i in idx]
-        g_percentiles[gid] = (chrom, strand, positions)
+    name_counts = {}
+
+    with opener(bed_path, "rt") as fh:
+        for line_no, raw in enumerate(fh, 1):
+            line = raw.strip()
+            if not line or line.startswith(("#", "track", "browser")):
+                continue
+            cols = line.split("\t")
+            if len(cols) < 12:
+                logger.warning(f"  BED parse: line {line_no} has {len(cols)} columns, expected 12; skipping")
+                continue
+            try:
+                chrom = cols[0]
+                chrom_start = int(cols[1])
+                name = cols[3]
+                strand = cols[5]
+                block_count = int(cols[9])
+                block_sizes = [int(x) for x in cols[10].rstrip(",").split(",") if x]
+                block_starts = [int(x) for x in cols[11].rstrip(",").split(",") if x]
+            except (ValueError, IndexError) as e:
+                logger.warning(f"  BED parse: line {line_no} malformed ({e}); skipping")
+                continue
+
+            if len(block_sizes) != block_count or len(block_starts) != block_count:
+                logger.warning(f"  BED parse: line {line_no} blockCount mismatch; skipping")
+                continue
+
+            # Exonic positions (1-based genomic, ascending order)
+            exonic_bases = []
+            for size, offset in zip(block_sizes, block_starts):
+                exon_start_1b = chrom_start + offset + 1  # BED is 0-based half-open
+                exonic_bases.extend(range(exon_start_1b, exon_start_1b + size))
+
+            if len(exonic_bases) < min_mRNA_length:
+                continue
+
+            idx = np.linspace(0, len(exonic_bases) - 1, num=n_bins).astype(int)
+            positions = [exonic_bases[i] for i in idx]
+
+            # Disambiguate duplicate names (RSeQC keeps every line independent)
+            count = name_counts.get(name, 0)
+            key = name if count == 0 else f"{name}__{count}"
+            name_counts[name] = count + 1
+
+            g_percentiles[key] = (chrom, strand, positions)
 
     return g_percentiles
 
 
 def _process_chromosome_pileup(args):
     """
-    Worker: RSeQC-style pileup coverage for genes on one chromosome.
+    Worker: single-pass RSeQC-equivalent coverage on one chromosome.
 
-    For each gene, iterates the pileup at the 100 percentile positions and
-    counts reads (skipping deletions, qcfail, secondary, unmapped, duplicate).
-    Returns a dict mapping percentile index → summed coverage.
+    Iterates primary alignments on the chromosome ONCE via ``bam.fetch``, uses a
+    sweep-line over BED records sorted by start to find which records each read
+    overlaps, and increments per-record percentile bins via ``read.get_blocks()``
+    (which correctly skips intronic ``N`` and deletion ``D`` CIGAR gaps). Same
+    per-read filters as RSeQC's pileup-based loop (qcfail / secondary / unmapped
+    / duplicate). Output matches a ``samtools pileup`` with unbounded
+    ``max_depth`` — pysam's default ``max_depth=8000`` silently caps pileup
+    coverage at very deep positions, which RSeQC inherits; this implementation
+    has no such cap.
+
+    Returns an ndarray of shape (n_bins,) with the chromosome's contribution to
+    the aggregate coverage profile, after applying ``[::-1]`` reversal for ``-``
+    strand records.
     """
     import pysam
-    import collections
+    from bisect import bisect_left, bisect_right
 
-    chrom, bam_path, genes_on_chrom = args
-    aggregated_cvg = collections.defaultdict(int)
+    chrom, bam_path, genes_on_chrom, n_bins = args
 
     bam = pysam.AlignmentFile(bam_path, "rb")
-    # Check chromosome exists in BAM
-    try:
-        bam.pileup(chrom, 1, 2)
-    except Exception:
+    if chrom not in bam.references or not genes_on_chrom:
         bam.close()
-        return dict(aggregated_cvg)
+        return np.zeros(n_bins, dtype=np.int64)
 
-    for _gid, strand, positions in genes_on_chrom:
-        coverage = {pos: 0 for pos in positions}
-        chrom_start = min(positions) - 1
-        if chrom_start < 0:
-            chrom_start = 0
-        chrom_end = max(positions)
-        pos_set = set(positions)
+    n_recs = len(genes_on_chrom)
+    pos_lists = [g[2] for g in genes_on_chrom]  # ascending genomic, 1-based
+    strands = [g[1] for g in genes_on_chrom]
+    cov_arrays = [np.zeros(n_bins, dtype=np.int64) for _ in range(n_recs)]
+    rec_min = [p[0] for p in pos_lists]  # 1-based
+    rec_max = [p[-1] for p in pos_lists]  # 1-based
 
-        for pileupcolumn in bam.pileup(chrom, chrom_start, chrom_end, truncate=True):
-            ref_pos = pileupcolumn.pos + 1  # 1-based
-            if ref_pos not in pos_set:
-                continue
-            if pileupcolumn.n == 0:
-                coverage[ref_pos] = 0
-                continue
-            cover_read = 0
-            for pileupread in pileupcolumn.pileups:
-                if pileupread.is_del:
-                    continue
-                if pileupread.alignment.is_qcfail:
-                    continue
-                if pileupread.alignment.is_secondary:
-                    continue
-                if pileupread.alignment.is_unmapped:
-                    continue
-                if pileupread.alignment.is_duplicate:
-                    continue
-                cover_read += 1
-            coverage[ref_pos] = cover_read
+    # Order indices by ascending start so we can sweep
+    order = sorted(range(n_recs), key=lambda i: rec_min[i])
+    fetch_start = max(0, min(rec_min) - 1)
+    fetch_end = max(rec_max)
 
-        tmp = [coverage[k] for k in sorted(coverage)]
-        if strand == "-":
-            tmp = tmp[::-1]
-        for i in range(len(tmp)):
-            aggregated_cvg[i] += tmp[i]
+    next_add = 0
+    active = []
+
+    for read in bam.fetch(chrom, fetch_start, fetch_end):
+        if read.is_unmapped or read.is_qcfail or read.is_secondary or read.is_duplicate:
+            continue
+
+        r_start = read.reference_start  # 0-based inclusive
+        r_end = read.reference_end  # 0-based exclusive (= last covered 1-based pos)
+
+        # Add records starting at or before r_end (earliest possible overlap)
+        while next_add < n_recs and rec_min[order[next_add]] <= r_end:
+            active.append(order[next_add])
+            next_add += 1
+
+        # Drop records whose last percentile position is before this read starts
+        if active:
+            r_start_1b = r_start + 1
+            active = [i for i in active if rec_max[i] >= r_start_1b]
+
+        if not active:
+            continue
+
+        blocks = read.get_blocks()
+        if not blocks:
+            continue
+
+        for i in active:
+            pos_arr = pos_lists[i]
+            cov = cov_arrays[i]
+            for bs, be in blocks:
+                # Block is 0-based half-open; positions in pos_arr are 1-based.
+                # Covered 1-based positions: [bs+1, be]
+                lo = bisect_left(pos_arr, bs + 1)
+                hi = bisect_right(pos_arr, be)
+                if hi > lo:
+                    cov[lo:hi] += 1
 
     bam.close()
-    return dict(aggregated_cvg)
+
+    # Apply per-record strand reversal and accumulate into a single chromosome vector
+    chrom_total = np.zeros(n_bins, dtype=np.int64)
+    for i in range(n_recs):
+        cov = cov_arrays[i]
+        if strands[i] == "-":
+            chrom_total += cov[::-1]
+        else:
+            chrom_total += cov
+
+    return chrom_total
 
 
-def _compute_gene_body_coverage(bam_path, gtf_path, n_bins=100, threads=4):
+def _compute_gene_body_coverage(bam_path, *, bed_path, n_bins=100, threads=4):
     """
-    Compute gene body coverage profile from a BAM and GTF (RSeQC-style).
+    Compute gene body coverage profile from a BAM and a curated BED12 (RSeQC-style).
 
-    For each gene, samples coverage at 100 percentile positions via pileup
-    and sums across all genes.  Parallelized per chromosome.
+    For each BED12 record, samples coverage at *n_bins* percentile positions via
+    pileup and sums across all records. Parallelized per chromosome. Behaves
+    exactly like RSeQC's ``geneBody_coverage.py`` — no per-read strand filter.
 
     Returns
     -------
     dict or None
         ``{"aggregate": ndarray(n_bins,), "n_models": int}``
-        None if insufficient data.
+        None if insufficient data or *bed_path* is not provided.
     """
     import pysam
     from collections import defaultdict
     from multiprocessing import Pool
+
+    if bed_path is None:
+        logger.warning("Gene body coverage skipped: no --gene-body-bed provided.")
+        return None
 
     logger.info("Computing gene body coverage (RSeQC-style pileup) ...")
 
@@ -3807,15 +3911,15 @@ def _compute_gene_body_coverage(bam_path, gtf_path, n_bins=100, threads=4):
         bam.close()
         return None
 
-    logger.info("  Parsing GTF and building percentile positions ...")
-    g_percentiles = _build_gene_percentiles(gtf_path, n_bins=n_bins)
+    logger.info(f"  Parsing BED12 and building percentile positions: {bed_path}")
+    g_percentiles = _build_gene_percentiles_from_bed(bed_path, n_bins=n_bins)
 
     if not g_percentiles:
-        logger.warning("Gene body coverage skipped: no valid gene models found.")
+        logger.warning("Gene body coverage skipped: no valid records found in BED.")
         bam.close()
         return None
 
-    logger.info(f"  {len(g_percentiles):,} genes with exonic length >= 100 bp")
+    logger.info(f"  {len(g_percentiles):,} BED records with exonic length >= 100 bp")
 
     # Group genes by chromosome, filter to chromosomes present in BAM
     bam_refs = set(bam.references)
@@ -3826,39 +3930,43 @@ def _compute_gene_body_coverage(bam_path, gtf_path, n_bins=100, threads=4):
             genes_by_chrom[chrom].append((gid, strand, positions))
 
     if not genes_by_chrom:
-        logger.warning("Gene body coverage skipped: no overlapping chromosomes between BAM and GTF.")
+        logger.warning("Gene body coverage skipped: no overlapping chromosomes between BAM and BED.")
         return None
 
     logger.info(f"  Processing {len(genes_by_chrom)} chromosomes ...")
     n_workers = min(threads, len(genes_by_chrom))
-    args = [(chrom, bam_path, gene_list) for chrom, gene_list in genes_by_chrom.items()]
+    # Schedule biggest chromosomes first so workers don't idle while a single
+    # large chromosome (chr1, chr2) finishes.
+    args = sorted(
+        ((chrom, bam_path, gene_list, n_bins) for chrom, gene_list in genes_by_chrom.items()),
+        key=lambda x: -len(x[2]),
+    )
 
     with Pool(n_workers) as pool:
-        per_chrom = pool.map(_process_chromosome_pileup, args)
+        per_chrom = pool.map(_process_chromosome_pileup, args, chunksize=1)
 
-    # Aggregate across chromosomes
     total_cvg = np.zeros(n_bins, dtype=np.float64)
-    for cvg_dict in per_chrom:
-        for i, v in cvg_dict.items():
-            total_cvg[i] += v
+    for chrom_cvg in per_chrom:
+        total_cvg += chrom_cvg
 
     n_models = sum(len(gl) for gl in genes_by_chrom.values())
-    logger.info(f"  Gene body coverage computed over {n_models:,} genes")
+    logger.info(f"  Gene body coverage computed over {n_models:,} BED records")
     return {"aggregate": total_cvg, "n_models": n_models}
 
 
-def _plot_gene_body_coverage(bam_path, gtf_path, n_bins=100, tsv_dir=None, threads=4):
+def _plot_gene_body_coverage(bam_path, *, bed_path=None, n_bins=100, tsv_dir=None, threads=4):
     """
     RSeQC-style gene body coverage plot.
 
-    Shows a single aggregate coverage line for both bulk and single-cell modes
-    (gene body coverage is a library-level metric).
+    Consumes a curated BED12 (one transcript per line, RSeQC convention).
+    Returns ``None`` when *bed_path* is not provided so the caller drops the
+    plot from the report.
 
     Returns ``(title, fig, caption, caption_y)`` or ``None``.
     """
     result = _compute_gene_body_coverage(
         bam_path,
-        gtf_path=gtf_path,
+        bed_path=bed_path,
         n_bins=n_bins,
         threads=threads,
     )
@@ -3908,10 +4016,10 @@ def _plot_gene_body_coverage(bam_path, gtf_path, n_bins=100, tsv_dir=None, threa
     # ── caption ─────────────────────────────────────────────────────────────
     n_models = result["n_models"]
     caption = (
-        f"Transcript body coverage across {n_models:,} expressed genes, using one "
-        "representative transcript per gene. "
+        f"Transcript body coverage across {n_models:,} BED12 records from the user-supplied "
+        f"<code>--gene-body-bed</code> ({os.path.basename(bed_path)}). "
         "Coverage is sampled at 100 evenly-spaced percentile positions along each "
-        "transcript body (RSeQC-style) and summed across all transcripts. "
+        "transcript body (RSeQC-style) and summed across all records. "
         "A flat profile indicates uniform full-length coverage; "
         "a 3' or 5' skew suggests incomplete capture or degradation."
     )

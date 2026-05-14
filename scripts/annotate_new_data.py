@@ -27,7 +27,14 @@ from tensorflow.keras import backend as K
 
 from scripts.available_gpus import gpus_to_visible_devices_string
 
-os.environ["CUDA_VISIBLE_DEVICES"] = gpus_to_visible_devices_string()
+# HARDENING: only set CUDA_VISIBLE_DEVICES if we actually found GPUs.
+# Setting it to "" (which happens when gpus_to_visible_devices_string() returns
+# an empty string) masks every GPU from TF for the rest of the process, which
+# is a silent footgun when the parent of a spawn subprocess has already set the
+# correct value. See train_model_wrap.py (parent-side env priming).
+_visible = gpus_to_visible_devices_string()
+if _visible:
+    os.environ["CUDA_VISIBLE_DEVICES"] = _visible
 
 tf.config.experimental.enable_tensor_float_32_execution(False)
 tf.keras.utils.set_random_seed(1)
@@ -47,8 +54,6 @@ NUCLEOTIDE_TO_ID[ord("N")] = 5  # Default encoding for unknown nucleotides
 if available_gpus.n_gpus() > 0:
     for gpu in available_gpus.get_tensorflow_output():
         tf.config.experimental.set_memory_growth(gpu, True)
-
-tf.config.optimizer.set_jit(True)
 
 
 @njit
@@ -250,6 +255,17 @@ def predict_with_backoff(model, build_dataset_fn, start_batch: int, min_batch: i
             last_err = e
             new_bs = max(int(min_batch), bs // 2)
             logger.warning(f"OOM at batch={bs}. Retrying with batch={new_bs}...")
+            # HARDENING: we are about to call K.clear_session() which invalidates
+            # every TF variable/kernel on GPU. Without a rebuild_model_fn, the
+            # model reference we hold will dangle — the next model.predict() would
+            # submit CUDA kernels referencing freed allocations, which is a
+            # documented trigger for "Unexpected Event status: 1" / driver
+            # corruption. Raise immediately instead of looping on a dead model.
+            if rebuild_model_fn is None:
+                raise RuntimeError(
+                    f"OOM at batch={bs} with no rebuild_model_fn provided. "
+                    f"Cannot safely recover; aborting to protect driver state."
+                ) from e
             K.clear_session()
             gc.collect()
             for dev in available_gpus.get_gpu_names_raw():
@@ -258,12 +274,16 @@ def predict_with_backoff(model, build_dataset_fn, start_batch: int, min_batch: i
                 except Exception:
                     pass
             time.sleep(1.0)
-            if rebuild_model_fn is not None:
-                try:
-                    model = rebuild_model_fn()
-                    logger.info("Model rebuilt after OOM recovery")
-                except Exception as rebuild_err:
-                    logger.error(f"Failed to rebuild model after OOM: {rebuild_err}")
+            try:
+                model = rebuild_model_fn()
+                logger.info("Model rebuilt after OOM recovery")
+            except Exception as rebuild_err:
+                # HARDENING: if rebuild fails, the old model is already stale
+                # (clear_session ran). Looping on it is unsafe — raise instead.
+                raise RuntimeError(
+                    f"OOM rebuild failed after batch={bs}: {rebuild_err}. "
+                    f"Model is stale; aborting to protect driver state."
+                ) from rebuild_err
             bs = new_bs
     raise RuntimeError("Prediction OOM/cancelled even at batch=1") from last_err
 
@@ -380,6 +400,7 @@ def load_model_for_inference(model_path, num_labels):
     n_gpus = available_gpus.n_gpus()
     min_batch = int(n_gpus) if n_gpus > 0 else 1
     strategy = tf.distribute.MirroredStrategy() if n_gpus > 1 else None
+    available_gpus.log_gpus_in_use(strategy=strategy)
 
     conv_filters = 256
     params = load_model_params(model_path)
@@ -395,7 +416,7 @@ def model_predictions(
     parquet_file,
     chunk_start,
     chunk_size,
-    model,
+    model_state,
     model_path,
     strategy,
     params,
@@ -410,8 +431,10 @@ def model_predictions(
 ):
     """Yield per-chunk (predictions, read_names, reads, lengths, qualities) from a Parquet file.
 
-    The *model* is pre-built by the caller via :func:`load_model_for_inference`
-    and reused across bins.
+    *model_state* is a mutable dict ``{"model": <keras model>, "using_strategy":
+    <bool>}`` owned by the caller and shared across bin calls. It lets us
+    only call ``build_model`` on genuine strategy flips instead of on every
+    new bin.
     """
     total_rows = calculate_total_rows(parquet_file)
     bin_name = os.path.basename(parquet_file).replace(".parquet", "")
@@ -463,7 +486,8 @@ def model_predictions(
     def _rebuild_model():
         return build_model(model_path, conv_filters, num_labels, strategy=strategy)
 
-    using_strategy = strategy is not None
+    model = model_state["model"]
+    using_strategy = model_state["using_strategy"]
 
     for chunk_idx in range(chunk_start, num_chunks + 1):
         if callable(should_process_chunk) and not should_process_chunk(bin_name, chunk_idx):
@@ -488,6 +512,9 @@ def model_predictions(
             if not using_strategy and strategy is not None:
                 model = build_model(model_path, conv_filters, num_labels, strategy=strategy)
                 using_strategy = True
+                model_state["model"] = model
+                model_state["using_strategy"] = True
+                available_gpus.log_gpus_in_use(strategy=strategy)
             chunk_predictions, global_bs, model = annotate_new_data_parallel(
                 X_new_padded,
                 model,
@@ -495,10 +522,14 @@ def model_predictions(
                 min_batch=min_batch,
                 rebuild_model_fn=_rebuild_model,
             )
+            model_state["model"] = model  # capture any OOM-driven rebuild
         else:
             if using_strategy:
                 model = build_model(model_path, conv_filters, num_labels, strategy=None)
                 using_strategy = False
+                model_state["model"] = model
+                model_state["using_strategy"] = False
+                available_gpus.log_gpus_in_use(strategy=None)
             small_bs = max(1, min(global_bs, len(reads)))
             chunk_predictions = model.predict(X_new_padded, batch_size=small_bs, verbose=0)
 
