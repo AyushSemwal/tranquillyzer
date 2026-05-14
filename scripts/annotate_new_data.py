@@ -55,13 +55,6 @@ if available_gpus.n_gpus() > 0:
     for gpu in available_gpus.get_tensorflow_output():
         tf.config.experimental.set_memory_growth(gpu, True)
 
-# HARDENING: global XLA JIT is disabled. tf2crf's Viterbi decode is not
-# XLA-compatible; fused compilation with a CRF head on TF 2.15 has produced
-# intermittent kernel miscompiles that surface as "Unexpected Event status: 1"
-# from the CUDA event manager. Models without CRF lose ~10-15% inference
-# throughput but stability is the priority here.
-# tf.config.optimizer.set_jit(True)
-
 
 @njit
 def encode_sequence_numba(read, encoded_seq):

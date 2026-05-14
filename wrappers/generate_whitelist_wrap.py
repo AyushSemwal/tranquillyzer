@@ -161,7 +161,7 @@ def _count_barcodes_from_files(files, barcode_columns, chunk_size):
 
 def generate_whitelist_wrap(
     output_dir,
-    model_name="10x3p_sc_ont_011",
+    model_name="10x3p_sc_ont_016",
     seq_order_file=None,
     input_file=None,
     barcode_columns_str=None,
