@@ -12,21 +12,31 @@ performance.
 The main factor is **read length**: longer reads require more GPU memory. The table below shows the longest read each GPU
 can handle. If the longest reads in your dataset are shorter than the limit listed for your GPU, you are good to go.
 
+::: {.callout-note}
+## Tentative figures — pending per-GPU benchmarking
+
+The numbers below are based on a single empirical run on 4× NVIDIA L40S using `10x3p_sc_ont_016`. The L40S entry is
+directly measured; all other entries are theoretical scalings using the model's per-token memory cost. Per-GPU
+empirical recommendations will be added as we benchmark each architecture; if you have results from your own runs,
+please open an issue.
+:::
+
 | GPU | VRAM (GB) | Max Read Length (bp) | Status |
 |---|:--:|:--:|:-:|
-| NVIDIA T4 | 16 | ~142,000 | Theoretical |
-| NVIDIA L4 | 24 | ~212,000 | Theoretical |
-| NVIDIA A10 | 24 | ~212,000 | Theoretical |
-| RTX 3090 | 24 | ~212,000 | Theoretical |
-| RTX 4090 | 24 | ~212,000 | Theoretical |
-| NVIDIA A100 | 40 | ~354,000 | Theoretical |
-| **NVIDIA L40S** | **48** | **~425,000** | **Empirically tested** |
-| NVIDIA A100 | 80 | ~708,000 | Theoretical |
-| NVIDIA H100 | 80 | ~708,000 | Theoretical |
+| NVIDIA T4 | 16 | ~323,000 | Theoretical |
+| NVIDIA L4 | 24 | ~484,000 | Theoretical |
+| NVIDIA A10 | 24 | ~484,000 | Theoretical |
+| RTX 3090 | 24 | ~484,000 | Theoretical |
+| RTX 4090 | 24 | ~484,000 | Theoretical |
+| NVIDIA A100 | 40 | ~807,000 | Theoretical |
+| **NVIDIA L40S** | **48** | **~525,000** | **Empirically tested** |
+| NVIDIA A100 | 80 | ~1,615,000 | Theoretical |
+| NVIDIA H100 | 80 | ~1,615,000 | Theoretical |
 
-: These limits assume XLA is enabled, `--vram-headroom 0.35` (the default), and the default model architecture
-(`10x3p_sc_ont_012`). **Empirically tested** means the model was directly observed to run at that read length.
-**Theoretical** values are extrapolated from the empirical measurement (see
+: These limits assume `--vram-headroom 0.35` (the default) and the architecture of
+`10x3p_sc_ont_016` (the current default model). **Empirically tested** corresponds to the largest read length directly
+observed in a production run on that GPU; the actual ceiling is likely higher. **Theoretical** values are extrapolated
+from the empirical anchor using the model's per-token memory cost (see
 [How feasibility limits are computed](#how-feasibility-limits-are-computed)).
 
 **A few things to keep in mind:**
@@ -43,16 +53,16 @@ can handle. If the longest reads in your dataset are shorter than the limit list
 You can estimate the maximum read length for any GPU using this rule of thumb:
 
 $$
-L_{\max} \approx \frac{\text{VRAM (GB)} \times 0.65}{73.4~\text{KB}}
+L_{\max} \approx \frac{\text{VRAM (GB)} \times 0.65}{32.2~\text{KB}}
 $$
 
-For example, a GPU with 32 GB of VRAM: $L_{\max} \approx \frac{32 \times 0.65}{0.0000734} \approx 283{,}000~\text{bp}$.
+For example, a GPU with 32 GB of VRAM: $L_{\max} \approx \frac{32 \times 0.65}{0.0000322} \approx 646{,}000~\text{bp}$.
 
 The 0.65 factor comes from the default `--vram-headroom` of 0.35 (only ~65% of memory is used, the rest is kept as a
-safety buffer). The 73.4 KB/bp constant is derived from empirical testing on NVIDIA L40S GPUs — see
-[Technical Details](#how-feasibility-limits-are-computed) for the full derivation.
+safety buffer). The 32.2 KB/bp constant is derived by scaling an L40S empirical measurement by the per-token memory cost
+of `10x3p_sc_ont_016` — see [Technical Details](#how-feasibility-limits-are-computed) for the full derivation.
 
-# How _Tranquillyzer_ Uses GPU
+# How Tranquillyzer Uses GPU
 
 You generally do not need to configure GPU settings manually. _Tranquillyzer_ automatically:
 
@@ -85,9 +95,9 @@ $$
 P_{\text{conv}} = \left\lfloor \frac{\max_i\bigl((k_i - 1) \times d_i\bigr)}{2} \right\rfloor
 $$
 
-For the default model (`conv_kernel_sizes = [25, 25, 25]`, `dilation_rates = [1, 3, 5]`), this works out to
-$P_{\text{conv}} = 60$. This padding ensures the model can see enough context to correctly label bases near the end of
-each read.
+For the current default model `10x3p_sc_ont_016` (`conv_kernel_sizes = [25, 25, 25]`, `dilation_rates = [1, 1, 1]`),
+this works out to $P_{\text{conv}} = 12$. This padding ensures the model can see enough context to correctly label
+bases near the end of each read.
 
 ### Chunks
 
@@ -141,14 +151,14 @@ Each term corresponds to a layer of the model:
 - **Input** (4 bytes): the encoded DNA base (stored as an integer).
 - **Embedding** ($d_e \times 4$): the learned vector representation of each base ($d_e$ = 128 by default).
 - **Conv activations** ($C_f \times 4$): outputs from the convolutional layers. $C_f$ is the total filter count across
-  all conv layers (128 filters $\times$ 3 layers = 384 for the default model).
-- **LSTM outputs** ($l_u \times d_{\text{bi}} \times 4$): outputs from the recurrent layer ($l_u$ = 96 units, $d_{\text{bi}}$ = 2 for bidirectional).
+  all conv layers (64 filters $\times$ 3 layers = 192 for the default model).
+- **LSTM outputs** ($l_u \times d_{\text{bi}} \times 4$): outputs from the recurrent layer ($l_u$ = 32 units, $d_{\text{bi}}$ = 2 for bidirectional).
 - **LSTM gates** ($l_u \times 4 \times d_{\text{bi}} \times 4$): internal memory used by the four LSTM gates
   (input, forget, cell, output).
 - **CRF / output** ($n_l \times 4$): the final prediction scores for each label ($n_l \approx$ 10 labels).
 - **Overhead** ($\alpha$ = 1.12): a 12% multiplier to account for TensorFlow's internal bookkeeping.
 
-For the default model, this works out to approximately **6,644 bytes per token** (see
+For the default model, this works out to approximately **2,916 bytes per token** (see
 [worked example](#bytes-per-token-estimation-formula)).
 
 The batch size from the memory check is then:
@@ -256,6 +266,37 @@ Try these steps in order:
   use the safer, dual-constraint approach.
 - **Increase `--target-tokens`** on high-VRAM GPUs (e.g., 1,500,000 or higher on A100/H100) to allow larger batches for
   longer reads.
+- **Raise `--max-batch-size`** above the default 8,192 on high-VRAM GPUs (e.g., 20,000 on 48 GB, up to ~32,000 on 80 GB)
+  to unlock larger batches on short-read bins. See [Tuning `--max-batch-size`](#tuning-max-batch-size) for guidelines.
+
+### Tuning `--max-batch-size`
+
+`--max-batch-size` is the per-GPU ceiling on batch size after the token-budget and memory checks have run. On
+**short-read bins**, GPU memory rarely binds and batch size is determined by either the token budget (default behavior)
+or `--max-batch-size` (when `--token-cap-above` is set). With the default `--max-batch-size = 8,192`, short bins on
+high-VRAM GPUs can leave a large portion of GPU compute idle.
+
+Raising `--max-batch-size` lets short-read bins use more of the GPU at once. The safe pattern is to combine a higher
+cap with `--token-cap-above`, so the cap only takes effect on bins below the threshold:
+
+```bash
+--max-batch-size 20000 --token-cap-above 10000
+```
+
+**Tentative starting points** (subject to per-GPU benchmarking):
+
+| VRAM | Suggested `--max-batch-size` (with `--token-cap-above 10000`) |
+|:--:|:-:|
+| 16 GB | 4,000 – 8,000 |
+| 24 GB | 8,000 – 12,000 |
+| 40–48 GB | 16,000 – 20,000 |
+| 80 GB | 24,000 – 32,000 |
+
+::: {.callout-warning}
+These are starting points derived from a single empirical run on 4× L40S (48 GB) — not exhaustive testing. If a chunk
+contains an outlier long read, an aggressive `--max-batch-size` can trigger an OOM recovery cycle that is slow.
+Per-GPU recommendations will be refined as we benchmark each architecture.
+:::
 
 ### Heterogeneous Multi-GPU Setups
 
@@ -277,58 +318,55 @@ reading — you do not need to understand these details to use _Tranquillyzer_ e
 
 ## Model Configuration Used for Estimates
 
-All estimates on this page correspond to the default **_Tranquillyzer_ CNN-BiLSTM-CRF** annotation model
-(`10x3p_sc_ont_012`) with the following architecture:
+All estimates on this page correspond to the **CNN-BiLSTM-CRF** annotation model `10x3p_sc_ont_016`, the current
+default. Its architecture is:
 
 | Parameter | Value |
 |---|:--:|
 | `embedding_dim` | 128 |
 | `conv_layers` | 3 |
-| `conv_filters` | 128 |
+| `conv_filters` | 64 |
 | `conv_kernel_sizes` | [25, 25, 25] |
-| `dilation_rates` | [1, 3, 5] |
+| `dilation_rates` | [1, 1, 1] |
 | `lstm_layers` | 1 |
-| `lstm_units` | 96 |
+| `lstm_units` | 32 |
 | `bidirectional` | TRUE |
 | `CRF` | TRUE |
 | `attention_heads` | 0 |
 
 ## How Feasibility Limits Are Computed
 
-The GPU feasibility limits in the [table above](#how-much-gpu-memory-do-you-need) are derived from a single empirical
-measurement and then scaled to other GPUs.
+The GPU feasibility limits in the [table above](#how-much-gpu-memory-do-you-need) combine an empirical anchor on the
+L40S with a theoretical scaling to other GPUs.
 
-### Empirical anchor
+### Empirical anchor (`10x3p_sc_ont_016`)
 
-> On a system with **4x NVIDIA L40S GPUs (48 GB VRAM each)** and XLA enabled, _Tranquillyzer_ (model
-`10x3p_sc_ont_012`) successfully processed reads of approximately **425 kb** at a per-GPU batch size of 1.
+> On a system with **4× NVIDIA L40S GPUs (48 GB VRAM each)**, _Tranquillyzer_ (model
+> `10x3p_sc_ont_016`) successfully processed reads up to **~525 kb** in a real annotation pipeline run. This is the
+> largest read length directly observed in that run; the actual ceiling on the L40S is likely higher.
+
+The run used `--vram-headroom 0.45`, `--target-tokens 1,100,000`, `--max-batch-size 20000`, and
+`--token-cap-above 10000`. With more aggressive settings (lower headroom, larger token budget), capacity can be pushed
+further.
 
 ### Scaling to other GPUs
 
-With the default headroom of 0.35, the usable memory on the L40S is:
+`10x3p_sc_ont_016` has roughly **44%** of the per-token memory cost of its predecessor `10x3p_sc_ont_012`
+(see [bpt table](#bytes-per-token-estimation-formula)). The 73.4 KB/bp empirical constant derived from a
+batch-size-1 measurement of `10x3p_sc_ont_012` on the L40S scales to approximately **32.2 KB/bp** for the current
+default model:
 
 $$
-U \approx 48~\text{GB} \times (1 - 0.35) \approx 31.2~\text{GB}
+L_{\max} \approx \frac{\text{VRAM} \times (1 - H)}{32.2~\text{KB}}
 $$
 
-Dividing by the maximum read length gives an effective memory cost per base:
-
-$$
-k \approx \frac{31.2~\text{GB}}{425{,}000~\text{bp}} \approx 73.4~\text{KB/bp}
-$$
-
-For any GPU, the maximum read length is then approximately:
-
-$$
-L_{\max} \approx \frac{\text{VRAM} \times (1 - H)}{k}
-$$
-
-where $H$ is the headroom fraction (default 0.35).
+where $H$ is the headroom fraction (default 0.35). This constant assumes overhead scales proportionally with theoretical
+per-token memory; direct per-GPU empirical confirmation is pending.
 
 ### Why empirical scaling rather than analytical calculation?
 
-GPU memory usage during inference is not just the model activations. It also includes TensorFlow/XLA compilation
-buffers, memory allocator fragmentation, LSTM internal state, CRF decoding workspace, and other overhead that is
+GPU memory usage during inference is not just the model activations. It also includes TensorFlow's cuDNN workspace
+allocations, memory allocator fragmentation, LSTM internal state, CRF decoding workspace, and other overhead that is
 difficult to predict analytically. Anchoring to a real measurement captures all of these factors, giving more reliable
 estimates — especially for ultra-long reads where these overheads become significant.
 
@@ -345,13 +383,13 @@ $$
 |---|---|:--:|---|
 | Input | 4 | 4 | One int32 per position |
 | Embedding | $d_e \times 4$ | 512 | Float32 embedding vector |
-| Conv | $C_f \times 4$ | 1,536 | Conv filter outputs ($C_f$ = filters $\times$ layers = 128 $\times$ 3) |
-| LSTM out | $l_u \times d_{\text{bi}} \times 4$ | 768 | Recurrent layer outputs (96 units $\times$ 2 directions) |
-| LSTM gates | $l_u \times 4 \times d_{\text{bi}} \times 4$ | 3,072 | Four LSTM gates, both directions |
+| Conv | $C_f \times 4$ | 768 | Conv filter outputs ($C_f$ = filters $\times$ layers = 64 $\times$ 3) |
+| LSTM out | $l_u \times d_{\text{bi}} \times 4$ | 256 | Recurrent layer outputs (32 units $\times$ 2 directions) |
+| LSTM gates | $l_u \times 4 \times d_{\text{bi}} \times 4$ | 1,024 | Four LSTM gates, both directions |
 | CRF/output | $n_l \times 4$ | 40 | Prediction scores for ~10 labels |
-| **Subtotal** | | **5,932** | |
+| **Subtotal** | | **2,604** | |
 | Overhead ($\alpha$ = 1.12) | | | 12% TensorFlow bookkeeping |
-| **Total bpt** | | **~6,644** | **bytes per token** |
+| **Total bpt** | | **~2,916** | **bytes per token** |
 
 ## Usable Memory at Runtime
 

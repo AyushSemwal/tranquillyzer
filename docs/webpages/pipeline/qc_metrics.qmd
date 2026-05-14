@@ -33,7 +33,7 @@ Providing an aligned BAM file (with CB and UB tags) enables:
 - **Unique UMIs per cell**
 - **Mapping rate per cell**
 - **Duplicate rate per cell**
-- **Gene body coverage** (also requires `--gtf`)
+- **Gene body coverage** (also requires `--gene-body-bed`)
 
 ## Tier 3: Gene Quantification Metrics (Requires `--counts-matrix` and `--gtf`)
 
@@ -66,8 +66,29 @@ tranquillyzer qc-metrics \
     --bam aligned_files/dup_marked.bam \
     --counts-matrix counts_matrix.tsv \
     --gtf gencode.v44.annotation.gtf \
+    --gene-body-bed hg38.HouseKeepingGenes.bed.gz \
     INPUT_DIR
 ```
+
+## Gene Body Coverage
+
+The gene body coverage plot follows the [RSeQC convention](https://rseqc.sourceforge.net/#genebody-coverage-py):
+the user supplies a curated BED12 (one transcript per line) via `--gene-body-bed`, and each line is treated
+independently in the pileup. No transcript is auto-picked from the GTF — supplying a curated BED keeps the
+percentile axis aligned with the canonical mRNA species and avoids artifacts from extended-UTR or retained-intron
+isoforms. Both plain and gzipped BED12 are accepted.
+
+Common sources for the BED:
+
+- **RSeQC housekeeping BEDs** ([SourceForge](https://sourceforge.net/projects/rseqc/files/BED/)) — pre-curated
+  single-isoform-per-gene sets for hg38, hg19, mm10, etc. The fastest path to a clean curve.
+- **MANE_Select export** — for human, the ~19,000 MANE_Select transcripts converted to BED12 (e.g. via UCSC
+  `gtfToGenePred` + `genePredToBed`).
+- **Custom curated set** — any BED12 the user trusts (e.g. APPRIS principal isoforms, project-specific genes
+  of interest).
+
+Without `--gene-body-bed`, the gene body coverage plot is omitted from the report (other QC sections are
+unaffected).
 
 # Command Line Options
 
@@ -81,7 +102,8 @@ tranquillyzer qc-metrics \
 | `--invalid-file` | auto-detect | Path to invalid annotations parquet | Only if non-standard location |
 | `--bam` | None | Coordinate-sorted BAM with CB/UB tags | Provide for saturation and alignment metrics |
 | `--counts-matrix` | None | featureCounts counts matrix TSV | Provide for gene-level QC |
-| `--gtf` | None | GTF annotation file | Required with `--counts-matrix`; also used for gene body coverage |
+| `--gtf` | None | GTF annotation file | Required with `--counts-matrix` |
+| `--gene-body-bed` | None | BED12 file (plain or `.gz`) for gene body coverage, RSeQC-style | Provide a curated single-transcript-per-gene BED (e.g. RSeQC `HouseKeepingGenes.bed.gz`, MANE_Select export) to enable the gene body coverage plot |
 | `--read-len-bin-width` | 100 | Bin width for read-length histograms | Decrease for finer resolution |
 
 # Output

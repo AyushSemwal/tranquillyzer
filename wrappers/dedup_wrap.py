@@ -58,7 +58,9 @@ def dedup_wrap(input_dir, lv_threshold, stranded, per_cell, threads):
             os.remove(stale_path)
             logger.info(f"Removed intermediate file: {stale_path}")
 
-    usage = resource.getrusage(resource.RUSAGE_CHILDREN)
-    max_rss_mb = usage.ru_maxrss / 1024 if os.uname().sysname == "Linux" else usage.ru_maxrss  # Linux gives KB
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
     logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
     logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")

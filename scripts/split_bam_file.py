@@ -410,7 +410,6 @@ def split_bam_file(
         merge_threads=merge_threads,
     )
 
-    t_all = time.time()
     logger.info("Starting split_bam")
     logger.info("Input: %s", input_bam)
     logger.info("Out dir: %s", out_dir)
@@ -551,5 +550,3 @@ def split_bam_file(
     else:
         logger.info("Removing temp dir: %s", tmp_dir)
         shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    logger.info("Finished split_bam in %.1fs", time.time() - t_all)

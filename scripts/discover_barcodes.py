@@ -330,7 +330,7 @@ def build_whitelist_from_discovery(canonical_tuples, barcode_columns):
     return whitelist_df, whitelist_dict
 
 
-def save_discovered_whitelist(whitelist_df, output_path):
+def save_discovered_whitelist(whitelist_df, output_path, model_name):
     """Write discovered whitelist to TSV file.
 
     Parameters
@@ -339,10 +339,12 @@ def save_discovered_whitelist(whitelist_df, output_path):
         Whitelist DataFrame from ``build_whitelist_from_discovery``.
     output_path : str
         Path to write the TSV file.
+    model_name : str
+        Model name to record in the file header.
     """
     from utils import write_tsv_with_version
 
-    write_tsv_with_version(output_path, whitelist_df.to_csv(sep="\t", index=False))
+    write_tsv_with_version(output_path, whitelist_df.to_csv(sep="\t", index=False), model_name)
     logger.info(f"Saved discovered whitelist ({len(whitelist_df)} barcodes) to {output_path}")
 
 
@@ -421,7 +423,7 @@ def plot_barcode_rank(counts, n_knee, output_path):
     logger.info(f"Saved barcode rank plot to {output_path}")
 
 
-def save_barcode_counts_tsv(counts, barcode_columns, knee_tuples, mapping, output_path):
+def save_barcode_counts_tsv(counts, barcode_columns, knee_tuples, mapping, output_path, model_name):
     """Write all observed barcode tuples with counts and discovery status to TSV.
 
     Parameters
@@ -436,6 +438,8 @@ def save_barcode_counts_tsv(counts, barcode_columns, knee_tuples, mapping, outpu
         Variant -> canonical tuple mapping from near-duplicate merging.
     output_path : str
         Path to write the TSV file.
+    model_name : str
+        Model name to record in the file header.
     """
     knee_set = set(knee_tuples)
     canonical_set = set(mapping.values()) if mapping else set()
@@ -459,7 +463,7 @@ def save_barcode_counts_tsv(counts, barcode_columns, knee_tuples, mapping, outpu
     df = pd.DataFrame(rows)
     from utils import write_tsv_with_version
 
-    write_tsv_with_version(output_path, df.to_csv(sep="\t", index=False))
+    write_tsv_with_version(output_path, df.to_csv(sep="\t", index=False), model_name)
     logger.info(f"Saved barcode counts ({len(df)} entries) to {output_path}")
 
 
@@ -467,6 +471,7 @@ def run_barcode_discovery(
     global_counts,
     barcode_columns,
     output_dir,
+    model_name,
     expected_cells=None,
     min_reads=3,
     min_cell_ratio=0.01,
@@ -488,6 +493,8 @@ def run_barcode_discovery(
         Barcode column names.
     output_dir : str
         Output directory for whitelist and stats files.
+    model_name : str
+        Model name to record in TSV artifact headers.
     expected_cells : int or None
         Optional hint for knee detection.
     min_reads : int
@@ -549,7 +556,7 @@ def run_barcode_discovery(
     whitelist_df, whitelist_dict = build_whitelist_from_discovery(canonical_tuples, barcode_columns)
 
     # Save artifacts
-    save_discovered_whitelist(whitelist_df, os.path.join(metadata_dir, "discovered_whitelist.tsv"))
+    save_discovered_whitelist(whitelist_df, os.path.join(metadata_dir, "discovered_whitelist.tsv"), model_name)
     save_discovery_stats(
         os.path.join(metadata_dir, "barcode_discovery_stats.json"),
         barcode_columns,
@@ -563,6 +570,7 @@ def run_barcode_discovery(
         knee_tuples,
         mapping,
         os.path.join(metadata_dir, "barcode_counts.tsv"),
+        model_name,
     )
 
     return whitelist_df, whitelist_dict

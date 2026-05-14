@@ -17,8 +17,9 @@ def get_version() -> str:
             return "unknown"
 
 
-def write_tsv_with_version(path, content):
-    """Write a TSV/CSV string to a file with a version comment header."""
+def write_tsv_with_version(path, content, model_name):
+    """Write a TSV/CSV string to a file with version and model_name comment headers."""
     with open(path, "w") as fh:
         fh.write(f"# tranquillyzer_version: {get_version()}\n")
+        fh.write(f"# model_name: {model_name}\n")
         fh.write(content)

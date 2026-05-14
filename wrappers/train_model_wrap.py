@@ -13,6 +13,7 @@ def load_libs():
     import time
     import pickle
     import random
+    import resource
     import itertools
     from collections import Counter
 
@@ -37,7 +38,7 @@ def load_libs():
     )
     from scripts.extract_annotated_seqs import extract_annotated_full_length_seqs
     from scripts.visualize_annot import save_plots_to_pdf
-    from scripts.available_gpus import log_gpus_used
+    from scripts.available_gpus import log_gpus_detected, log_gpus_in_use
     from utils import get_version
     import h5py
 
@@ -49,6 +50,7 @@ def load_libs():
         time,
         pickle,
         random,
+        resource,
         itertools,
         Counter,
         np,
@@ -70,7 +72,8 @@ def load_libs():
         preprocess_sequences,
         extract_annotated_full_length_seqs,
         save_plots_to_pdf,
-        log_gpus_used,
+        log_gpus_detected,
+        log_gpus_in_use,
         get_version,
         h5py,
     )
@@ -107,6 +110,7 @@ def train_model_wrap(
         time,
         pickle,
         random,
+        resource,
         itertools,
         Counter,
         np,
@@ -128,13 +132,17 @@ def train_model_wrap(
         preprocess_sequences,
         extract_annotated_full_length_seqs,
         save_plots_to_pdf,
-        log_gpus_used,
+        log_gpus_detected,
+        log_gpus_in_use,
         get_version,
         h5py,
     ) = load_libs()
 
-    # Let user know whether they're running on CPU only or GPU (provided handles if so)
-    log_gpus_used()
+    start = time.time()
+
+    # Report physical GPU detection up front; actual in-use count is logged
+    # below once the MirroredStrategy has been constructed per variant.
+    log_gpus_detected()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(base_dir, "..")
@@ -328,7 +336,7 @@ def train_model_wrap(
 
         # Multi-GPU strategy
         strategy = tf.distribute.MirroredStrategy()
-        logger.info(f"Number of devices: {strategy.num_replicas_in_sync}")
+        log_gpus_in_use(strategy=strategy)
 
         with strategy.scope():
             model = ont_read_annotator(
@@ -412,3 +420,11 @@ def train_model_wrap(
             chars_per_line=150,
         )
         gc.collect()
+
+    logger.info("Note: peak memory does not include GPU device memory.")
+    usage_self = resource.getrusage(resource.RUSAGE_SELF)
+    usage_children = resource.getrusage(resource.RUSAGE_CHILDREN)
+    max_rss_kb = usage_self.ru_maxrss + usage_children.ru_maxrss
+    max_rss_mb = max_rss_kb / 1024 if os.uname().sysname == "Linux" else max_rss_kb
+    logger.info(f"Peak memory usage: {max_rss_mb:.2f} MB")
+    logger.info(f"Elapsed time: {time.time() - start:.2f} seconds")
